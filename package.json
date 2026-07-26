@@ -1,0 +1,13 @@
+{
+  "name": "liberty-drive",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A GTA-style open-world sandbox game that runs in the browser.",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "autoplay": "node bot/autoplay.js --seconds 170"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.0"
+  }
+}

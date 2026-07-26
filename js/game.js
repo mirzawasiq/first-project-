@@ -1,0 +1,252 @@
+/* ===== LIBERTY DRIVE — main game orchestrator ===== */
+LD.game = (function () {
+  const U = LD.util;
+
+  let renderer, scene, camera, clock;
+  let player;
+  let playing = false, paused = false, dying = false;
+  let money = 500;
+  let last = 0;
+
+  LD._frameMouse = { dx: 0, dy: 0, downEdge: false };
+
+  // ---------- setup ----------
+  function init() {
+    const canvas = document.getElementById('scene');
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 900);
+    camera.position.set(0, 12, 24);
+    clock = new THREE.Clock();
+
+    LD.input.init(canvas);
+    LD.hud.init();
+    LD.world.build(scene);
+    LD.vehicles.init(scene);
+    LD.traffic.init(scene);
+    LD.fx.init(scene);
+    LD.police.init(scene);
+    LD.missions.init(scene);
+
+    // populate the city
+    LD.vehicles.spawnParked(26);
+    LD.traffic.spawnTraffic(14);
+    LD.traffic.spawnPeds(38);
+
+    player = LD.Player(scene);
+    const sp = LD.world.safeSpawn();
+    player.respawn(sp.x, sp.z);
+
+    window.addEventListener('resize', onResize);
+    document.getElementById('startBtn').addEventListener('click', start);
+
+    // pause / menu toggle
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyM' && playing) toggleMenu();
+    });
+    // clicking canvas resumes audio
+    canvas.addEventListener('click', () => LD.audio.resume());
+
+    document.getElementById('loading').classList.add('hidden');
+    requestAnimationFrame(loop);
+  }
+
+  function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  function start() {
+    document.getElementById('menu').classList.add('hidden');
+    LD.hud.show();
+    LD.audio.resume();
+    playing = true; paused = false;
+    LD.input.requestLock();
+    LD.missions.begin(player);
+    LD.hud.toast('Welcome to Liberty. Find a car and cause some chaos!', 'good');
+  }
+
+  function toggleMenu() {
+    paused = !paused;
+    const menu = document.getElementById('menu');
+    if (paused) { menu.classList.remove('hidden'); document.exitPointerLock && document.exitPointerLock(); }
+    else { menu.classList.add('hidden'); LD.input.requestLock(); }
+  }
+
+  // ---------- crime / wanted callbacks ----------
+  function escalate(min) {
+    if (LD.police.stars < min) LD.police.setStars(min);
+  }
+  function onPlayerAttack(isMelee) {
+    if (isMelee) LD.police.addWanted(0.15);
+    else { escalate(1); LD.police.addWanted(0.25); }   // firing a gun draws attention
+  }
+  function onPlayerKill(target, cause) {
+    if (cause === 'car') { LD.police.addWanted(1.0); LD.hud.toast('Hit and run!', 'bad'); }
+    else LD.police.addWanted(1.1);
+    escalate(cause === 'car' ? 1 : 2);
+  }
+  function onCopKilled() {
+    LD.police.addWanted(1.4); escalate(3);
+    LD.weapons.addAmmo(14);
+    LD.hud.toast('Cop down — heat rising! (+ammo)', 'bad');
+  }
+  function addMoney(n) { money += n; }
+  function spendMoney(n) { money = Math.max(0, money - n); }
+
+  // ---------- death / bust ----------
+  function startWasted() {
+    if (dying) return;
+    dying = true;
+    LD.hud.bigFlash('WASTED', 'wasted');
+    LD.audio.stopEngine();
+    setTimeout(() => respawn('hospital'), 2600);
+  }
+  function onBusted() {
+    if (dying || !player) return;
+    dying = true;
+    LD.hud.bigFlash('BUSTED', 'busted');
+    LD.audio.stopEngine();
+    setTimeout(() => respawn('jail'), 2600);
+  }
+  function respawn(kind) {
+    const fee = kind === 'jail' ? Math.round(money * 0.15) : Math.round(money * 0.1);
+    spendMoney(fee);
+    // respawn on a clear stretch of road
+    const sp = LD.world.safeSpawn();
+    player.respawn(sp.x, sp.z);
+    player.armor = 0;
+    LD.police.clear();
+    LD.weapons.select(0);
+    LD.hud.clearFlash();
+    dying = false;
+    LD.hud.toast((kind === 'jail' ? 'Released. Bribe: ' : 'Patched up. Bill: ') + U.money(fee), 'bad');
+  }
+
+  // ---------- interactions ----------
+  function nearestCar(maxDist) {
+    let best = null, bestD = maxDist;
+    for (const car of LD.vehicles.cars) {
+      if (car.destroyed) continue;
+      const d = Math.hypot(car.pos.x - player.pos.x, car.pos.z - player.pos.z);
+      if (d < bestD) { bestD = d; best = car; }
+    }
+    return best;
+  }
+
+  function handleInteract() {
+    if (player.dead) { LD.hud.prompt(''); return; }
+    if (player.inCar) {
+      if (LD.input.wasPressed('KeyF')) player.exitCar();
+      LD.hud.prompt('');
+      return;
+    }
+    const car = nearestCar(4.6);
+    if (car) {
+      LD.hud.prompt('Press <b>F</b> to ' + (car.isPolice ? 'steal police car' : 'enter vehicle'));
+      if (LD.input.wasPressed('KeyF')) {
+        const wasOccupied = car.isTraffic || car.copCar;
+        // jack
+        if (car.isTraffic) { spawnFleeingDriver(car); LD.police.addWanted(0.6); escalate(1); LD.hud.toast('Grand Theft Auto!', 'bad'); }
+        if (car.isPolice) { LD.police.addWanted(1.0); escalate(2); LD.hud.toast('Stole a cop car!', 'bad'); }
+        car.isTraffic = false; car.ai = null; car.copCar = null; car.control = { throttle: 0, steer: 0, handbrake: false };
+        player.enterCar(car);
+      }
+    } else {
+      LD.hud.prompt('');
+    }
+  }
+
+  function spawnFleeingDriver(car) {
+    // a scared pedestrian appears next to the jacked car
+    LD.traffic.spawnPeds && (function () {
+      LD.traffic.spawnPeds(1);
+    })();
+    LD.traffic.scare(car.pos, 14);
+  }
+
+  // ---------- main loop ----------
+  function loop(t) {
+    requestAnimationFrame(loop);
+    let dt = clock.getDelta();
+    dt = Math.min(dt, 0.05);
+
+    LD._frameMouse = LD.input.consumeMouse();
+
+    if (playing && !paused && !document.hidden) {
+      updateSim(dt);
+    }
+    renderer.render(scene, camera);
+  }
+
+  function updateSim(dt) {
+    LD.world.update(dt);
+
+    // vehicle input for the player's car
+    if (player.inCar && !player.dead) LD.vehicles.driveInput(player.inCar);
+
+    // AI controllers set their car controls / move peds & cops
+    LD.traffic.update(dt, player);
+    LD.police.update(dt, player, camera);
+
+    // physics pass for every car
+    for (const car of LD.vehicles.cars) car.updatePhysics(dt);
+
+    // player (mouselook always applied inside; foot movement/cam when on foot)
+    player.update(dt, camera);
+
+    if (player.inCar) {
+      player.pos.copy(player.inCar.pos);
+      player.inCar.updateCamera(camera, player.camYaw, player.camPitch, dt);
+      const spd01 = Math.abs(player.inCar.speed) / player.inCar.spec.maxF;
+      LD.audio.updateEngine(spd01, Math.max(0, player.inCar.control.throttle));
+    }
+
+    // combat
+    LD.weapons.update(dt, player);
+    if (LD._frameMouse.downEdge && !player.dead && !player.inCar && !paused) {
+      LD.weapons.attack(player, camera);
+    }
+
+    LD.fx.update(dt);
+    LD.missions.update(dt, player);
+    handleInteract();
+
+    if (player.dead && !dying) startWasted();
+
+    updateHUD();
+  }
+
+  function updateHUD() {
+    LD.hud.setMoney(money);
+    LD.hud.setHealth(player.health, player.armor);
+    LD.hud.setWanted(LD.police.stars);
+    LD.hud.setWeapon(LD.weapons.currentName(), LD.weapons.currentIsGun() ? LD.weapons.ammoText() : '');
+    LD.hud.setClock(LD.world.timeString());
+    LD.hud.speedo(!!player.inCar, player.inCar ? player.inCar.speedMph : 0);
+    LD.hud.drawMinimap(player);
+
+    // red vignette on hurt
+    if (player.hurtFlash > 0) {
+      renderer.domElement.style.filter = 'saturate(1.2) brightness(' + (0.7 + Math.random() * 0.1) + ')';
+    } else {
+      renderer.domElement.style.filter = '';
+    }
+  }
+
+  // public API used by other modules
+  return {
+    init,
+    onPlayerAttack, onPlayerKill, onCopKilled, onBusted,
+    addMoney, spendMoney,
+    get money() { return money; },
+    get player() { return player; },
+    get scene() { return scene; },
+  };
+})();
+
+window.addEventListener('DOMContentLoaded', () => LD.game.init());

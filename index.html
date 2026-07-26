@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>LIBERTY DRIVE — Open World</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="game">
+    <canvas id="scene"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <!-- Top-right status -->
+      <div id="status">
+        <div id="wanted" class="wanted"></div>
+        <div id="money" class="money">$0</div>
+        <div id="clock" class="clock">12:00</div>
+      </div>
+
+      <!-- Bottom-left bars + weapon -->
+      <div id="vitals">
+        <div class="barwrap"><span class="lbl">HP</span><div class="bar"><div id="hpbar" class="fill hp"></div></div></div>
+        <div class="barwrap"><span class="lbl">AR</span><div class="bar"><div id="arbar" class="fill ar"></div></div></div>
+        <div id="weapon" class="weapon">
+          <span id="weaponName">Fists</span>
+          <span id="ammo" class="ammo"></span>
+        </div>
+      </div>
+
+      <!-- Minimap -->
+      <div id="mapwrap">
+        <canvas id="minimap" width="220" height="220"></canvas>
+      </div>
+
+      <!-- Mission ticker -->
+      <div id="mission" class="mission"></div>
+
+      <!-- Center prompt (enter car, etc.) -->
+      <div id="prompt" class="prompt hidden"></div>
+
+      <!-- Toast notifications -->
+      <div id="toasts"></div>
+
+      <!-- Speedometer (car only) -->
+      <div id="speedo" class="speedo hidden"><span id="speedval">0</span><small>mph</small></div>
+
+      <!-- Big status flashes (WASTED / BUSTED) -->
+      <div id="bigflash" class="bigflash hidden"></div>
+    </div>
+
+    <!-- Start / menu screen -->
+    <div id="menu">
+      <div class="menu-inner">
+        <h1 class="logo">LIBERTY<span>DRIVE</span></h1>
+        <p class="tag">An open-world sandbox in your browser</p>
+        <button id="startBtn">ENTER THE CITY</button>
+        <div class="controls">
+          <div class="col">
+            <h3>On Foot</h3>
+            <ul>
+              <li><b>WASD</b> Move</li>
+              <li><b>Mouse</b> Look</li>
+              <li><b>Shift</b> Sprint</li>
+              <li><b>Space</b> Jump</li>
+              <li><b>F</b> Enter vehicle</li>
+              <li><b>Left Click</b> Attack / Shoot</li>
+              <li><b>1 / 2</b> Fists / Pistol</li>
+            </ul>
+          </div>
+          <div class="col">
+            <h3>In Vehicle</h3>
+            <ul>
+              <li><b>W / S</b> Gas / Brake</li>
+              <li><b>A / D</b> Steer</li>
+              <li><b>Space</b> Handbrake</li>
+              <li><b>F</b> Exit vehicle</li>
+              <li><b>Mouse</b> Look around</li>
+            </ul>
+          </div>
+          <div class="col">
+            <h3>Goal</h3>
+            <ul>
+              <li>Reach <span class="y">yellow markers</span> for paid jobs.</li>
+              <li>Cause chaos, raise your <span class="r">wanted level</span>.</li>
+              <li>Evade the cops or get <b>WASTED</b> / <b>BUSTED</b>.</li>
+              <li>It's a sandbox — go wild.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="fine">Click the screen to lock the mouse. Press <b>Esc</b> to release it. Press <b>M</b> to toggle this menu.</p>
+      </div>
+    </div>
+
+    <div id="loading" class="hidden">Building the city…</div>
+  </div>
+
+  <!-- Engine -->
+  <script src="lib/three.min.js"></script>
+
+  <!-- Game modules (load order matters) -->
+  <script src="js/utils.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/vehicles.js"></script>
+  <script src="js/traffic.js"></script>
+  <script src="js/weapons.js"></script>
+  <script src="js/police.js"></script>
+  <script src="js/missions.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
