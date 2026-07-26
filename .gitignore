@@ -1,0 +1,4 @@
+# autoplay session output (video/screenshots are large, regenerate with `npm run autoplay`)
+runs/
+node_modules/
+package-lock.json

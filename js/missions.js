@@ -25,16 +25,23 @@ LD.missions = (function () {
     scene.add(marker);
   }
 
+  // Markers must land on a road that is actually clear of geometry. Picking
+  // a raw random x/z can drop the objective inside a building, where nothing
+  // — on foot or in a car — can ever reach it and the job is unwinnable.
   function randSpot(awayFrom, minDist) {
-    const { HALF } = LD.world.consts;
-    for (let i = 0; i < 30; i++) {
-      const x = U.rand(-HALF + 6, HALF - 6);
-      const z = U.rand(-HALF + 6, HALF - 6);
-      if (!awayFrom || Math.hypot(x - awayFrom.x, z - awayFrom.z) > (minDist || 0)) {
-        return new THREE.Vector3(x, 0, z);
+    let fallback = null;
+    for (let i = 0; i < 60; i++) {
+      const rp = LD.world.randomRoadPoint();
+      if (LD.world.collide(rp.x, rp.z, 2.5).hit) continue;
+      const spot = new THREE.Vector3(rp.x, 0, rp.z);
+      if (!fallback) fallback = spot;
+      if (!awayFrom || Math.hypot(rp.x - awayFrom.x, rp.z - awayFrom.z) > (minDist || 0)) {
+        return spot;
       }
     }
-    return new THREE.Vector3(U.rand(-HALF, HALF), 0, U.rand(-HALF, HALF));
+    if (fallback) return fallback;
+    const s = LD.world.safeSpawn();
+    return new THREE.Vector3(s.x, 0, s.z);
   }
 
   function setMarker(pos, color) {

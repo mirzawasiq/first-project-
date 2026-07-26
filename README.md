@@ -65,6 +65,37 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
 
 ---
 
+## 🤖 Watch it play itself (autoplay bot)
+
+The repo ships an AI bot that plays the game on its own — it drives the same
+keyboard and mouse events a human does, so it exercises the real input path.
+
+```bash
+npm install            # one-time: pulls playwright-core
+npm run autoplay       # or: node bot/autoplay.js --seconds 170 --headed
+```
+
+It writes `runs/gameplay.webm`, periodic screenshots, and a `report.json`
+scorecard. The bot runs in three phases:
+
+| Phase | What it does |
+|---|---|
+| **commute** | Steals a parked car, routes over the road grid to job markers, completes paid deliveries |
+| **chaos** | Gets out, draws the pistol, and starts trouble to build a wanted level |
+| **escape** | Jacks a fresh car and runs for the intersection furthest from the police |
+
+It navigates with a **BFS route search over the city's intersection graph**
+(the same node graph the traffic AI uses) rather than driving straight at
+objectives, plus stuck-detection that reverses out of corners.
+
+A representative 170-second session:
+
+```
+earned        +$1,093      deliveries     1        peak wanted   ★★★★★
+top speed     75 mph       cars stolen    2        deaths        1
+distance      1,187 units  shots fired   45        runtime errors 0
+```
+
 ## 🧱 Tech & assets
 
 - **Engine:** [Three.js](https://threejs.org/) r128 (MIT), vendored locally in
@@ -79,6 +110,7 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
 
 ```
 index.html          Entry point, HUD markup, script loading
+bot/                Autoplay bot (brain.js = AI, autoplay.js = runner)
 css/style.css       HUD, menus, and overlay styling
 lib/three.min.js    Vendored Three.js (MIT)
 js/

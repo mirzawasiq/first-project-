@@ -32,7 +32,13 @@ LD.input = (function () {
     }
   }
   function onMouseDown(e) {
-    if (e.button === 0) { if (!mouse.down) mouse.downEdge = true; mouse.down = true; }
+    if (e.button !== 0) return;
+    // Only clicks on the game canvas count as an attack. Without this, menu
+    // clicks (e.g. the start button) bubble up to window and are read as a
+    // punch, which hands the player a wanted star before they even move.
+    if (canvas && e.target !== canvas) return;
+    if (!mouse.down) mouse.downEdge = true;
+    mouse.down = true;
   }
   function onMouseUp(e) { if (e.button === 0) mouse.down = false; }
 
