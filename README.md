@@ -63,6 +63,25 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
 - **Synthesized audio** — engine, gunshots, punches, crashes, cash, and a police
   siren, all generated live with the Web Audio API (no sound files).
 
+### Visuals
+
+- **Physically-shaded rendering** — sRGB output with ACES filmic tone mapping,
+  soft real-time sun shadows, and a shadow frustum that travels with you so a
+  600-unit city still gets crisp contact shadows.
+- **Bloom** — lit windows, headlights and police strobes glow after dark
+  (`UnrealBloomPass`, dialled right down in daylight).
+- **Gradient sky dome** that shifts through dawn, midday, golden hour and night.
+- **Jointed characters** — hips → torso → chest → neck, two-segment arms and
+  legs, so knees fold and elbows bend.
+- **Procedural run cycle** — stride frequency and amplitude scale with speed,
+  knees fold only backwards, the torso pitches forward into a sprint, and the
+  shoulders counter-rotate against the hips. Separate idle, walk, sprint,
+  airborne, punch and two-handed aiming poses.
+- **Detailed vehicles** — semi-metallic paint, raked greenhouse, chrome rims,
+  bumpers and emissive lights.
+
+![Night in Liberty](docs/night.png)
+
 ---
 
 ## 🤖 Watch it play itself (autoplay bot)
@@ -113,12 +132,14 @@ index.html          Entry point, HUD markup, script loading
 bot/                Autoplay bot (brain.js = AI, autoplay.js = runner)
 css/style.css       HUD, menus, and overlay styling
 lib/three.min.js    Vendored Three.js (MIT)
+lib/pp/             Vendored post-processing passes (bloom, FXAA)
 js/
   utils.js          Math helpers, palettes
   input.js          Keyboard + pointer-lock mouse look
   audio.js          Web Audio synthesized SFX (engine, siren, guns…)
   world.js          City generation, road graph, collision, day/night
-  player.js         Low-poly human factory + on-foot player & camera
+  character.js      Jointed humanoid rig + procedural run/idle/aim animation
+  player.js         On-foot player controller & camera
   vehicles.js       Car factory, arcade physics, chase camera
   traffic.js        AI traffic + pedestrians
   weapons.js        Effects (fx) + fists/pistol combat

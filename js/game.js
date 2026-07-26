@@ -2,7 +2,7 @@
 LD.game = (function () {
   const U = LD.util;
 
-  let renderer, scene, camera, clock;
+  let renderer, scene, camera, clock, composer = null, bloom = null, fxaa = null;
   let player;
   let playing = false, paused = false, dying = false;
   let money = 500;
@@ -16,11 +16,31 @@ LD.game = (function () {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
+    // sRGB + filmic tone mapping is most of the "why does this suddenly look
+    // like a real game" difference: lighting stops clipping to flat colour
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.98;
+    renderer.physicallyCorrectLights = false;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 900);
     camera.position.set(0, 12, 24);
     clock = new THREE.Clock();
+
+    // ---- post-processing: bloom makes the night neon/headlights glow ----
+    if (window.THREE && THREE.EffectComposer) {
+      composer = new THREE.EffectComposer(renderer);
+      composer.addPass(new THREE.RenderPass(scene, camera));
+      bloom = new THREE.UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight), 0.12, 0.55, 0.92);
+      composer.addPass(bloom);
+      fxaa = new THREE.ShaderPass(THREE.FXAAShader);
+      composer.addPass(fxaa);
+      sizeFXAA();
+    }
 
     LD.input.init(canvas);
     LD.hud.init();
@@ -54,10 +74,20 @@ LD.game = (function () {
     requestAnimationFrame(loop);
   }
 
+  function sizeFXAA() {
+    if (!fxaa) return;
+    const pr = renderer.getPixelRatio();
+    fxaa.material.uniforms.resolution.value.set(
+      1 / (window.innerWidth * pr), 1 / (window.innerHeight * pr));
+  }
+
   function onResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+    if (bloom) bloom.setSize(window.innerWidth, window.innerHeight);
+    sizeFXAA();
   }
 
   function start() {
@@ -180,11 +210,13 @@ LD.game = (function () {
     if (playing && !paused && !document.hidden) {
       updateSim(dt);
     }
-    renderer.render(scene, camera);
+    if (composer) composer.render(); else renderer.render(scene, camera);
   }
 
   function updateSim(dt) {
     LD.world.update(dt);
+    LD.world.followSun(player.pos);
+    if (bloom) bloom.strength = 0.07 + LD.world.nightFactor * 0.62;
 
     // vehicle input for the player's car
     if (player.inCar && !player.dead) LD.vehicles.driveInput(player.inCar);

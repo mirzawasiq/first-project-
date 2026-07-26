@@ -12,44 +12,87 @@ LD.vehicles = (function () {
   };
 
   function wheel(x, z, r) {
-    const w = new THREE.Mesh(
-      new THREE.CylinderGeometry(r, r, 0.4, 12),
-      new THREE.MeshLambertMaterial({ color: 0x111114 })
+    const g = new THREE.Group();
+    const tyre = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, 0.42, 18),
+      new THREE.MeshStandardMaterial({ color: 0x0e0f13, roughness: 0.95 })
     );
-    w.rotation.z = Math.PI / 2;
-    w.position.set(x, r, z);
-    return w;
+    tyre.rotation.z = Math.PI / 2;
+    tyre.castShadow = true;
+    g.add(tyre);
+    // chrome rim, inset on both faces
+    const rimM = new THREE.MeshStandardMaterial({ color: 0xc9ced8, roughness: 0.28, metalness: 0.9 });
+    [-1, 1].forEach((sd) => {
+      const rim = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.58, r * 0.58, 0.06, 12), rimM);
+      rim.rotation.z = Math.PI / 2;
+      rim.position.x = sd * 0.21;
+      g.add(rim);
+    });
+    g.position.set(x, r, z);
+    return g;
   }
 
   function buildMesh(type, color) {
     const t = TYPES[type];
     const g = new THREE.Group();
 
-    const body = new THREE.Mesh(
-      new THREE.BoxGeometry(t.w, t.h, t.l),
-      new THREE.MeshLambertMaterial({ color })
-    );
+    // automotive paint: smooth, semi-metallic, so it catches highlights
+    const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.32, metalness: 0.65 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(t.w, t.h, t.l), paint);
     body.position.y = t.h / 2 + 0.35;
+    body.castShadow = true; body.receiveShadow = true;
     g.add(body);
+
+    // lower skirt + bumpers break up the slab silhouette
+    const trimM = new THREE.MeshStandardMaterial({ color: 0x191b21, roughness: 0.8 });
+    const skirt = new THREE.Mesh(new THREE.BoxGeometry(t.w + 0.06, 0.26, t.l * 0.96), trimM);
+    skirt.position.y = 0.42; skirt.castShadow = true; g.add(skirt);
+    [-1, 1].forEach((sd) => {
+      const bump = new THREE.Mesh(new THREE.BoxGeometry(t.w * 0.98, 0.3, 0.24), trimM);
+      bump.position.set(0, t.h * 0.42 + 0.35, sd * (t.l / 2));
+      g.add(bump);
+    });
+    // hood/boot creases
+    [-1, 1].forEach((sd) => {
+      const deck = new THREE.Mesh(
+        new THREE.BoxGeometry(t.w * 0.9, 0.1, t.l * 0.2), paint);
+      deck.position.set(0, t.h + 0.36, sd * t.l * 0.32);
+      g.add(deck);
+    });
 
     // cabin
     const cabinH = type === 'truck' ? t.h * 0.7 : t.h * 0.75;
-    const cabin = new THREE.Mesh(
-      new THREE.BoxGeometry(t.w * 0.86, cabinH, t.l * (type === 'truck' ? 0.32 : 0.5)),
-      new THREE.MeshLambertMaterial({ color: 0x10141c })
-    );
+    // greenhouse: tapered toward the roof so it reads like a windscreen rake
+    const cabGeo = new THREE.BoxGeometry(t.w * 0.88, cabinH, t.l * (type === 'truck' ? 0.32 : 0.52));
+    const cp = cabGeo.attributes.position;
+    for (let i = 0; i < cp.count; i++) {
+      if (cp.getY(i) > 0) { cp.setX(i, cp.getX(i) * 0.86); cp.setZ(i, cp.getZ(i) * 0.78); }
+    }
+    cp.needsUpdate = true; cabGeo.computeVertexNormals();
+    const cabin = new THREE.Mesh(cabGeo, new THREE.MeshStandardMaterial({
+      color: 0x0c1018, roughness: 0.12, metalness: 0.5,
+    }));
+    cabin.castShadow = true;
     cabin.position.set(0, t.h + 0.35 + cabinH / 2 - 0.05, type === 'truck' ? t.l * 0.22 : 0);
     g.add(cabin);
+    // roof panel in body colour
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(t.w * 0.74, 0.08, t.l * (type === 'truck' ? 0.26 : 0.4)), paint);
+    roof.position.set(0, t.h + 0.35 + cabinH - 0.04, cabin.position.z);
+    roof.castShadow = true;
+    g.add(roof);
 
     // headlights
-    const hlMat = new THREE.MeshBasicMaterial({ color: 0xfff4c2 });
+    const hlMat = new THREE.MeshStandardMaterial({
+      color: 0xfff4c2, emissive: 0xfff0c0, emissiveIntensity: 1.6, roughness: 0.2 });
     [-t.w * 0.32, t.w * 0.32].forEach((x) => {
       const hl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.1), hlMat);
       hl.position.set(x, t.h * 0.6, -t.l / 2);
       g.add(hl);
     });
     // taillights
-    const tlMat = new THREE.MeshBasicMaterial({ color: 0xff3320 });
+    const tlMat = new THREE.MeshStandardMaterial({
+      color: 0xff3320, emissive: 0xff2a12, emissiveIntensity: 1.3, roughness: 0.3 });
     [-t.w * 0.32, t.w * 0.32].forEach((x) => {
       const tl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.1), tlMat);
       tl.position.set(x, t.h * 0.6, t.l / 2);
@@ -68,12 +111,12 @@ LD.vehicles = (function () {
       body.material.color.setHex(0x1b2540);
       // white doors panel
       const stripe = new THREE.Mesh(new THREE.BoxGeometry(t.w + 0.02, 0.5, t.l * 0.5),
-        new THREE.MeshLambertMaterial({ color: 0xdfe3ea }));
+        new THREE.MeshStandardMaterial({ color: 0xeef2f7, roughness: 0.45, metalness: 0.1 }));
       stripe.position.set(0, t.h * 0.55, 0);
       g.add(stripe);
       lightbar = new THREE.Group();
-      const rl2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.4), new THREE.MeshBasicMaterial({ color: 0xff2a2a }));
-      const bl2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.4), new THREE.MeshBasicMaterial({ color: 0x2a5aff }));
+      const rl2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.4), new THREE.MeshStandardMaterial({ color: 0xff2a2a, emissive: 0xff2a2a, emissiveIntensity: 2.2 }));
+      const bl2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.4), new THREE.MeshStandardMaterial({ color: 0x2a5aff, emissive: 0x2a5aff, emissiveIntensity: 2.2 }));
       rl2.position.x = -0.3; bl2.position.x = 0.3;
       lightbar.add(rl2); lightbar.add(bl2);
       lightbar.position.set(0, t.h + 0.35 + cabinH + 0.1, 0);
@@ -154,8 +197,8 @@ LD.vehicles = (function () {
         if (this.lightbar) {
           this._flash += dt * 8;
           const on = Math.sin(this._flash) > 0;
-          this.lightbar.userData.rl.material.color.setHex(on ? 0xff2a2a : 0x400000);
-          this.lightbar.userData.bl.material.color.setHex(on ? 0x2a5aff : 0x000040);
+          this.lightbar.userData.rl.material.emissiveIntensity = on ? 3.2 : 0.05;
+          this.lightbar.userData.bl.material.emissiveIntensity = on ? 0.05 : 3.2;
         }
       },
 

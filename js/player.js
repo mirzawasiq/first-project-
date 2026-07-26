@@ -1,61 +1,4 @@
-/* ===== LIBERTY DRIVE — human factory + on-foot player ===== */
-
-/* Low-poly articulated human, reused for player / pedestrians / cops. */
-LD.makeHuman = function (opts) {
-  opts = opts || {};
-  const U = LD.util;
-  const skin = opts.skin != null ? opts.skin : U.pick(U.SKIN);
-  const shirt = opts.shirt != null ? opts.shirt : U.pick(U.SHIRT);
-  const pants = opts.pants != null ? opts.pants : U.pick(U.PANTS);
-
-  const g = new THREE.Group();
-  const M = (c) => new THREE.MeshLambertMaterial({ color: c });
-
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.4, 0.6), M(shirt));
-  torso.position.y = 2.35;
-  g.add(torso);
-
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.7, 0.7), M(skin));
-  head.position.y = 3.4;
-  g.add(head);
-
-  const hair = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.22, 0.74), M(opts.hair != null ? opts.hair : 0x2a1f18));
-  hair.position.y = 3.72;
-  g.add(hair);
-
-  const legGeo = new THREE.BoxGeometry(0.42, 1.5, 0.5);
-  legGeo.translate(0, -0.75, 0); // pivot at hip
-  const legL = new THREE.Mesh(legGeo, M(pants)); legL.position.set(-0.28, 1.65, 0); g.add(legL);
-  const legR = new THREE.Mesh(legGeo.clone(), M(pants)); legR.position.set(0.28, 1.65, 0); g.add(legR);
-
-  const armGeo = new THREE.BoxGeometry(0.32, 1.3, 0.36);
-  armGeo.translate(0, -0.62, 0); // pivot at shoulder
-  const armL = new THREE.Mesh(armGeo, M(shirt)); armL.position.set(-0.72, 3.0, 0); g.add(armL);
-  const armR = new THREE.Mesh(armGeo.clone(), M(shirt)); armR.position.set(0.72, 3.0, 0); g.add(armR);
-
-  const human = {
-    group: g, torso, head, legL, legR, armL, armR,
-    _phase: 0, aiming: false, dead: false,
-    animate(dt, moveSpeed) {
-      if (this.dead) return;
-      this._phase += dt * (4 + moveSpeed * 1.1);
-      const sw = Math.sin(this._phase) * Math.min(0.9, 0.18 + moveSpeed * 0.06);
-      legL.rotation.x = sw; legR.rotation.x = -sw;
-      if (this.aiming) { armR.rotation.x = -Math.PI / 2; armL.rotation.x = -0.3; }
-      else { armR.rotation.x = -sw * 0.8; armL.rotation.x = sw * 0.8; }
-    },
-    die() {
-      if (this.dead) return;
-      this.dead = true;
-      g.rotation.x = -Math.PI / 2;      // fall over
-      g.position.y = 0.2;
-    },
-    setTint(hex) {
-      torso.material.color.setHex(hex);
-    }
-  };
-  return human;
-};
+/* ===== LIBERTY DRIVE — on-foot player (rig lives in character.js) ===== */
 
 LD.Player = function (scene) {
   const U = LD.util;
@@ -172,7 +115,8 @@ LD.Player = function (scene) {
       human.group.position.copy(this.pos);
       human.group.rotation.y = this.yaw;
       human.aiming = (LD.weapons && LD.weapons.currentIsGun());
-      human.animate(dt, moving ? spd : 0);
+      if (!this.grounded) human.airborne(this.velY > 0);
+      else human.animate(dt, moving ? spd : 0);
 
       this._followCam(camera);
 

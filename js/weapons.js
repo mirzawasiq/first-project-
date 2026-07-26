@@ -176,7 +176,7 @@ LD.weapons = (function () {
       // melee
       cooldown = w.rate;
       LD.audio.punch();
-      player.human.armR.rotation.x = -1.6;
+      player.human.punch();
       const fwd = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
       let hit = null, bestD = w.range;
       const check = (arr, kind) => {
@@ -214,10 +214,7 @@ LD.weapons = (function () {
     if (cooldown > 0) cooldown -= dt;
     if (LD.input.wasPressed('Digit1')) select(0);
     if (LD.input.wasPressed('Digit2')) select(1);
-    // relax melee arm
-    if (player && !player.dead && !currentIsGun() && player.human.armR.rotation.x < -0.5) {
-      player.human.armR.rotation.x += dt * 6;
-    }
+    // the punch swing now animates itself inside the character rig
   }
 
   return { attack, update, currentIsGun, currentName, ammoText, select, addAmmo, resetAmmo,
