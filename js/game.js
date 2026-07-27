@@ -5,6 +5,7 @@ LD.game = (function () {
   let renderer, scene, camera, clock, composer = null, bloom = null, fxaa = null;
   let player;
   let playing = false, paused = false, dying = false;
+  const headlights = [];
   let money = 500;
   let last = 0;
 
@@ -42,14 +43,20 @@ LD.game = (function () {
       sizeFXAA();
     }
 
+    LD.game.renderer = renderer;          // world/env map needs it during build
     LD.input.init(canvas);
     LD.hud.init();
     LD.world.build(scene);
+    LD.weather.init(scene, camera);
+    LD.pickups.init(scene);
     LD.vehicles.init(scene);
     LD.traffic.init(scene);
     LD.fx.init(scene);
     LD.police.init(scene);
     LD.missions.init(scene);
+    LD.quality.init(renderer, {
+      bloom, fxaa, composer, sun: scene.children.find((c) => c.isDirectionalLight),
+    });
 
     // populate the city
     LD.vehicles.spawnParked(26);
@@ -60,12 +67,21 @@ LD.game = (function () {
     const sp = LD.world.safeSpawn();
     player.respawn(sp.x, sp.z);
 
+    // two real spotlights, re-parented to whatever the player drives
+    for (let i = 0; i < 2; i++) {
+      const sp = new THREE.SpotLight(0xfff0cf, 0, 95, 0.52, 0.45, 1.4);
+      sp.castShadow = false;
+      scene.add(sp); scene.add(sp.target);
+      headlights.push(sp);
+    }
+
     window.addEventListener('resize', onResize);
     document.getElementById('startBtn').addEventListener('click', start);
 
     // pause / menu toggle
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyM' && playing) toggleMenu();
+      if (e.code === 'KeyG' && playing) LD.quality.cycle();
     });
     // clicking canvas resumes audio
     canvas.addEventListener('click', () => LD.audio.resume());
@@ -94,6 +110,7 @@ LD.game = (function () {
     document.getElementById('menu').classList.add('hidden');
     LD.hud.show();
     LD.audio.resume();
+    LD.audio.startAmbience();
     playing = true; paused = false;
     LD.input.requestLock();
     LD.missions.begin(player);
@@ -152,6 +169,7 @@ LD.game = (function () {
     player.armor = 0;
     LD.police.clear();
     LD.weapons.select(0);
+    LD.pickups.reset();
     LD.hud.clearFlash();
     dying = false;
     LD.hud.toast((kind === 'jail' ? 'Released. Bribe: ' : 'Patched up. Bill: ') + U.money(fee), 'bad');
@@ -210,7 +228,9 @@ LD.game = (function () {
     if (playing && !paused && !document.hidden) {
       updateSim(dt);
     }
-    if (composer) composer.render(); else renderer.render(scene, camera);
+    LD.quality.tick(dt);
+    if (composer && (bloom.enabled || fxaa.enabled)) composer.render();
+    else renderer.render(scene, camera);
   }
 
   function updateSim(dt) {
@@ -244,6 +264,9 @@ LD.game = (function () {
       LD.weapons.attack(player, camera);
     }
 
+    LD.weather.update(dt, player.pos);
+    LD.pickups.update(dt, player);
+    updateHeadlights();
     LD.fx.update(dt);
     LD.missions.update(dt, player);
     handleInteract();
@@ -253,14 +276,37 @@ LD.game = (function () {
     updateHUD();
   }
 
+  // headlights follow the driven car and switch on when it gets dark or wet
+  function updateHeadlights() {
+    const car = player.inCar;
+    const want = Math.max(LD.world.nightFactor, LD.weather.rainLevel * 0.8);
+    if (!car || car.destroyed || want < 0.18) {
+      for (const h of headlights) h.intensity = 0;
+      return;
+    }
+    const fwd = new THREE.Vector3(-Math.sin(car.heading), 0, -Math.cos(car.heading));
+    const side = new THREE.Vector3(Math.cos(car.heading), 0, -Math.sin(car.heading));
+    headlights.forEach((h, i) => {
+      const off = (i === 0 ? -1 : 1) * car.spec.w * 0.33;
+      h.position.set(
+        car.pos.x + fwd.x * (car.spec.l / 2) + side.x * off, 1.05,
+        car.pos.z + fwd.z * (car.spec.l / 2) + side.z * off);
+      h.target.position.set(
+        car.pos.x + fwd.x * 46 + side.x * off, -1.4, car.pos.z + fwd.z * 46 + side.z * off);
+      h.target.updateMatrixWorld();
+      h.intensity = 2.6 * want;
+    });
+  }
+
   function updateHUD() {
     LD.hud.setMoney(money);
     LD.hud.setHealth(player.health, player.armor);
     LD.hud.setWanted(LD.police.stars);
     LD.hud.setWeapon(LD.weapons.currentName(), LD.weapons.currentIsGun() ? LD.weapons.ammoText() : '');
-    LD.hud.setClock(LD.world.timeString());
+    LD.hud.setClock(LD.world.timeString() + '  ' + LD.weather.label);
     LD.hud.speedo(!!player.inCar, player.inCar ? player.inCar.speedMph : 0);
     LD.hud.drawMinimap(player);
+    LD.hud.setPerf(LD.quality.fps, LD.quality.label);
 
     // red vignette on hurt
     if (player.hurtFlash > 0) {
@@ -278,6 +324,8 @@ LD.game = (function () {
     get money() { return money; },
     get player() { return player; },
     get scene() { return scene; },
+    get camera() { return camera; },
+    renderer: null,
   };
 })();
 

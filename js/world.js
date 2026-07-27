@@ -13,8 +13,15 @@ LD.world = (function () {
   const nodes = [];        // intersection positions {x,z,i,j}
   const trees = [];
   let windowMats = [];
+  let facadeMats = [];
+  let capMat = null;
   let sun, hemi, ambient, sky, skyDome = null;
   let nightFactor = 0;
+  let groundMat = null;            // road surface, goes wet/reflective in rain
+  const neons = [];                // emissive shop signs
+  const lampPools = [];            // fake light pools cast on the pavement
+  let weatherLight = 1, weatherFog = 0, weatherFlash = 0;
+  let envMap = null;
   let lampMeshes = [];
   let time = 8.0;          // hours 0..24
   let dayLen = 240;        // seconds per full day
@@ -142,27 +149,27 @@ LD.world = (function () {
   function addBuilding(cx, cz, w, d) {
     const h = U.rand(14, 62);
     const geo = new THREE.BoxGeometry(w, h, d);
-    const src = U.pick(windowMats);
-    const wt = src.map.clone(); wt.needsUpdate = true;
-    const et = src.emissive.clone(); et.needsUpdate = true;
+    // Buildings SHARE one material per facade variant. Cloning a map +
+    // emissiveMap per building meant hundreds of canvas textures and a
+    // state change on every draw; tiling is baked into the UVs instead.
+    const vi = U.randInt(0, facadeMats.length - 1);
+    const mat = facadeMats[vi];
     const rx = Math.max(1, Math.round(w / 22)), ry = Math.max(1, Math.round(h / 20));
-    wt.repeat.set(rx, ry); et.repeat.set(rx, ry);
-    const mat = new THREE.MeshStandardMaterial({
-      map: wt, roughness: 0.72, metalness: 0.06,
-      emissive: new THREE.Color(0xffffff), emissiveMap: et, emissiveIntensity: 0.0,
-    });
+    const uv = geo.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * rx, uv.getY(i) * ry);
+    uv.needsUpdate = true;
     const m = new THREE.Mesh(geo, mat);
     m.position.set(cx, h / 2 + 0.3, cz);
     m.castShadow = true; m.receiveShadow = true;
     // rooftop cap + parapet
     const cap = new THREE.Mesh(
       new THREE.BoxGeometry(w * 0.6, 2, d * 0.6),
-      new THREE.MeshStandardMaterial({ color: 0x363b46, roughness: 0.9 })
+      capMat
     );
     cap.castShadow = true;
     cap.position.set(cx, h + 1.3, cz);
     scene.add(m); scene.add(cap);
-    buildings.push({ x: cx, z: cz, hx: w / 2, hz: d / 2, h, mesh: m, mat });
+    buildings.push({ x: cx, z: cz, hx: w / 2, hz: d / 2, h, mesh: m });
   }
 
   function addTree(x, z) {
@@ -196,10 +203,50 @@ LD.world = (function () {
     lampMeshes.push(head.material);
   }
 
+  const NEON = [0xff2d6f, 0x2de1ff, 0xffd23f, 0x8a5cff, 0x38ff9e, 0xff6a2d];
+
+  function addNeon(cx, cz, w, d, h) {
+    const col = U.pick(NEON);
+    const wide = U.chance(0.5);
+    const geo = new THREE.PlaneGeometry(wide ? w * 0.5 : 1.1, wide ? 1.6 : h * 0.22);
+    const mat = new THREE.MeshStandardMaterial({
+      color: col, emissive: col, emissiveIntensity: 0, side: THREE.DoubleSide,
+      roughness: 0.4, transparent: true, opacity: 0.96,
+    });
+    const sign = new THREE.Mesh(geo, mat);
+    // pin it to a random face, just proud of the wall
+    const face = U.randInt(0, 3);
+    const y = U.rand(6, Math.max(8, h * 0.55));
+    if (face === 0) sign.position.set(cx, y, cz + d / 2 + 0.15);
+    else if (face === 1) { sign.position.set(cx, y, cz - d / 2 - 0.15); sign.rotation.y = Math.PI; }
+    else if (face === 2) { sign.position.set(cx + w / 2 + 0.15, y, cz); sign.rotation.y = -Math.PI / 2; }
+    else { sign.position.set(cx - w / 2 - 0.15, y, cz); sign.rotation.y = Math.PI / 2; }
+    scene.add(sign);
+    neons.push({ mat, flicker: U.chance(0.25), phase: U.rand(0, 9) });
+  }
+
+  function addLampPool(x, z) {
+    const m = new THREE.Mesh(
+      new THREE.CircleGeometry(7.5, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0xffdba6, transparent: true, opacity: 0,
+        depthWrite: false, blending: THREE.AdditiveBlending, fog: true })
+    );
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, 0.06, z);
+    scene.add(m);
+    lampPools.push(m.material);
+  }
+
   // ---------- build ----------
   function build(sc) {
     scene = sc;
     windowMats = [0, 1, 2, 3, 4].map(makeWindowTexture);
+    facadeMats = windowMats.map((src) => new THREE.MeshStandardMaterial({
+      map: src.map, roughness: 0.72, metalness: 0.06,
+      emissive: new THREE.Color(0xffffff), emissiveMap: src.emissive, emissiveIntensity: 0.0,
+    }));
+    capMat = new THREE.MeshStandardMaterial({ color: 0x363b46, roughness: 0.9 });
 
     // sky + fog
     sky = new THREE.Color(0x8fb7e6);
@@ -231,7 +278,8 @@ LD.world = (function () {
     // base asphalt (roads everywhere underneath the blocks)
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(SPAN + GRID * 2, SPAN + GRID * 2),
-      new THREE.MeshStandardMaterial({ map: makeAsphaltTexture(), roughness: 0.95, metalness: 0.02 })
+      groundMat = new THREE.MeshStandardMaterial({
+        map: makeAsphaltTexture(), roughness: 0.95, metalness: 0.02 })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0;
@@ -303,6 +351,7 @@ LD.world = (function () {
             const w = blockSpan * U.rand(0.7, 0.92);
             const d = blockSpan * U.rand(0.7, 0.92);
             addBuilding(cx, cz, w, d);
+            if (U.chance(0.5)) addNeon(cx, cz, w, d, 30);
           } else {
             const w = blockSpan * 0.44, d = blockSpan * 0.44, o = blockSpan * 0.24;
             addBuilding(cx - o, cz - o, w, d);
@@ -318,11 +367,52 @@ LD.world = (function () {
     for (const n of nodes) {
       if ((n.i + n.j) % 2 === 0) {
         addLamp(n.x + ROAD / 2 + 1.2, n.z + ROAD / 2 + 1.2);
+        addLampPool(n.x + ROAD / 2 + 1.2, n.z + ROAD / 2 + 1.2);
       }
     }
 
+    buildEnvMap();
     applyTimeOfDay();
     return { N, GRID, ROAD, HALF, SPAN, nodes, buildings };
+  }
+
+  /* Environment map for reflections (car paint, chrome, wet asphalt).
+     NOTE: generating this from the sky-dome ShaderMaterial via
+     PMREMGenerator.fromScene() produced a broken CubeUV texture that
+     rendered every MeshStandardMaterial black. Building it from a plain
+     equirectangular canvas is the reliable path. */
+  function makeSkyEquirect() {
+    const w = 256, h = 128;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    const grd = g.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0.00, '#2f6fc9');     // zenith
+    grd.addColorStop(0.45, '#9dc4e8');
+    grd.addColorStop(0.52, '#dbe7f2');     // horizon haze
+    grd.addColorStop(1.00, '#4a4f58');     // ground bounce
+    g.fillStyle = grd; g.fillRect(0, 0, w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.mapping = THREE.EquirectangularReflectionMapping;
+    t.encoding = THREE.sRGBEncoding;
+    return t;
+  }
+
+  function buildEnvMap() {
+    try {
+      const renderer = LD.game && LD.game.renderer;
+      if (!renderer || !THREE.PMREMGenerator) return;
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      pmrem.compileEquirectangularShader();
+      const src = makeSkyEquirect();
+      const rt = pmrem.fromEquirectangular(src);
+      envMap = rt.texture;
+      scene.environment = envMap;
+      src.dispose();
+      pmrem.dispose();
+    } catch (e) {
+      envMap = null;
+      scene.environment = null;      // never let reflections break rendering
+    }
   }
 
   // ---------- queries ----------
@@ -408,29 +498,65 @@ LD.world = (function () {
       u.bottom.value.copy(horizon);
     }
 
-    sun.intensity = 0.10 + day * 1.75;
+    sun.intensity = (0.10 + day * 1.75) * Math.max(0.45, weatherLight) + weatherFlash * 2.2;
     sun.color.setHex(dusk ? 0xffa055 : 0xfff4e2);
-    ambient.intensity = 0.34 + day * 0.46;
-    hemi.intensity = 0.30 + day * 0.62;
+    ambient.intensity = (0.10 + day * 0.16) * U.lerp(1, 0.86, 1 - weatherLight) + weatherFlash * 1.2;
+    hemi.intensity = 0.10 + day * 0.22;
     hemi.color.setHex(dusk ? 0xffc79a : 0xbdd7ff);
 
     // sun arc across the sky
     const ang = ((t - 6) / 12) * Math.PI; // sunrise 6 -> sunset 18
     sun.position.set(Math.cos(ang) * 140, Math.max(12, Math.sin(ang) * 150), 40);
 
+    // r128 has no global IBL knob, so scale each material's envMapIntensity:
+    // reflections must fade with the sky or night looks lit like noon
+    const ibl = U.lerp(0.12, 1.0, day);
+    for (const fm of facadeMats) fm.envMapIntensity = ibl;
+
     // windows + lamps glow at night (bloom picks these up)
     nightFactor = U.clamp(1 - day * 1.4, 0, 1);
-    for (const b of buildings) {
-      if (b.mat) b.mat.emissiveIntensity = nightFactor * 1.5;
-    }
+    for (const fm of facadeMats) fm.emissiveIntensity = nightFactor * 1.5;
     for (const lm of lampMeshes) {
       lm.color.setHex(nightFactor > 0.35 ? 0xffe6b0 : 0x2f3138);
+    }
+    // lamps also throw a soft pool on the pavement once it is dark
+    const lampOn = U.clamp((nightFactor - 0.25) / 0.5, 0, 1);
+    for (const lp of lampPools) lp.opacity = lampOn * 0.3;
+    // neon comes on at dusk; a quarter of the signs have a dying tube
+    for (const n of neons) {
+      let v = lampOn * 2.6;
+      if (n.flicker) {
+        const f = Math.sin(time * 90 + n.phase) * Math.sin(time * 37 + n.phase * 2);
+        if (f > 0.72) v *= 0.15;
+      }
+      n.mat.emissiveIntensity = v;
     }
   }
 
   function update(dt) {
     time = (time + dt / dayLen * 24) % 24;
     applyTimeOfDay();
+  }
+
+  /* Called every frame by LD.weather with eased values. */
+  function applyWeather(w, flash) {
+    weatherLight = w.light; weatherFog = w.fog; weatherFlash = flash || 0;
+    if (groundMat) {
+      // Wet asphalt is a DIELECTRIC: it gets a smooth specular sheen, it does
+      // not become metal. Pushing metalness up kills the diffuse term and the
+      // road renders black, so keep metalness near zero and drop roughness.
+      const wet = w.wet;
+      groundMat.roughness = U.lerp(0.95, 0.30, wet);
+      groundMat.metalness = U.lerp(0.02, 0.10, wet);
+      groundMat.color.setScalar(U.lerp(1.0, 0.74, wet));
+      groundMat.envMapIntensity = U.lerp(0.35, 1.15, wet);
+    }
+    // fog closes in with weather, and hard at night
+    if (scene.fog) {
+      const base = 460;
+      scene.fog.near = U.lerp(140, 20, w.fog);
+      scene.fog.far = U.lerp(base, 130, w.fog);
+    }
   }
 
   // move the shadow camera and sky with the player
@@ -478,7 +604,7 @@ LD.world = (function () {
 
   return {
     build, isRoad, inBounds, nearestNode, nodeNeighbors, collide, update,
-    randomRoadPoint, safeSpawn, timeString, followSun,
+    randomRoadPoint, safeSpawn, timeString, followSun, applyWeather,
     get nightFactor() { return nightFactor; },
     get time() { return time; }, set time(v) { time = v; },
     get consts() { return { N, GRID, ROAD, HALF, SPAN }; },

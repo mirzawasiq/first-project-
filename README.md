@@ -38,6 +38,7 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
 | **Left Click** | Punch / Shoot | | |
 | **1 / 2** | Fists / Pistol | | |
 | **M** | Pause / menu | **Esc** | Release mouse |
+| **Q** | Cycle weapon | **G** | Graphics preset |
 
 ---
 
@@ -79,6 +80,41 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
   airborne, punch and two-handed aiming poses.
 - **Detailed vehicles** — semi-metallic paint, raked greenhouse, chrome rims,
   bumpers and emissive lights.
+
+### Weather & atmosphere
+
+- **Dynamic weather system** — clear, cloudy, overcast, rain, thunderstorm and
+  fog, rolling through plausible transitions (it never jumps clear → storm) with
+  every channel eased, not snapped.
+- **Wet roads** — rain lowers the asphalt's roughness and raises its
+  reflectivity so the street picks up the sky and the lights.
+- **Rain** as a recycled point cloud that follows you, plus wind-driven drift.
+- **Thunderstorms** with lightning that actually lights the scene and thunder
+  delayed by distance.
+- **Volumetric-feel fog** that closes in with the weather.
+- **Drifting clouds**, **stars** on clear nights (hidden by cloud cover), and a
+  **moon** that tracks the time of day.
+- **Car headlights** — real spotlights that switch on at dusk or in rain.
+- **Neon signs** on the buildings, some with a dying, flickering tube.
+- **Street lamp pools** on the pavement after dark.
+- **Environment reflections** via a PMREM environment map.
+
+### Combat & sandbox
+
+- **Four weapons** — fists, pistol, shotgun (7-pellet spread, real kick) and a
+  full-auto SMG. Switch with **1-4** or cycle with **Q**.
+- **World pickups** — health, armour, ammo, cash and weapon crates that glow at
+  night and respawn elsewhere after you take them.
+
+### Performance
+
+- **Four graphics presets** (Low / Medium / High / Ultra) — press **G** to cycle.
+- **Adaptive quality**: it samples the real frame rate and steps the preset down
+  when the machine can't hold up, then back up when it comfortably can.
+- Starting preset is guessed from the device (mobile and low-core machines start
+  lower), and a live **fps + preset readout** sits under the clock.
+- Buildings **share materials** with tiling baked into their UVs, instead of
+  cloning a texture per building.
 
 ![Night in Liberty](docs/night.png)
 
@@ -137,7 +173,10 @@ js/
   utils.js          Math helpers, palettes
   input.js          Keyboard + pointer-lock mouse look
   audio.js          Web Audio synthesized SFX (engine, siren, guns…)
-  world.js          City generation, road graph, collision, day/night
+  quality.js        Graphics presets + adaptive performance scaling
+  world.js          City generation, road graph, collision, day/night, neon
+  weather.js        Weather state machine, rain, clouds, stars, lightning
+  pickups.js        Health / armour / ammo / cash / weapon crates
   character.js      Jointed humanoid rig + procedural run/idle/aim animation
   player.js         On-foot player controller & camera
   vehicles.js       Car factory, arcade physics, chase camera
@@ -150,6 +189,28 @@ js/
 ```
 
 ---
+
+## 🧭 Scope & honest limits
+
+This is a **WebGL** game running on Three.js in a browser tab, with everything
+generated procedurally in code. Some things people ask for are simply not
+available in that environment, and it is better to say so than to imply
+otherwise:
+
+- **No ray tracing, no Lumen-style global illumination, no Nanite.** Those are
+  Unreal Engine features backed by dedicated hardware paths. What this uses
+  instead: PBR materials, a PMREM environment map for reflections, soft
+  shadow maps, bloom and filmic tone mapping.
+- **No 8K textures.** Browser memory and upload bandwidth make that
+  counter-productive; textures here are procedural canvases (256–512px) that
+  tile.
+- **No skeletal facial animation, hair simulation or cloth physics.** The
+  characters use a procedurally animated jointed rig, not a skinned mesh with
+  blend shapes.
+- **Hundreds of pedestrians, not thousands.** Density is tuned to hold a
+  playable frame rate; the adaptive quality system protects that budget.
+
+Everything else in this README is implemented and testable in the repo.
 
 ## ⚖️ A note on "GTA"
 

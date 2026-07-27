@@ -13,6 +13,7 @@ LD.Player = function (scene) {
     yaw: 0,             // facing
     camYaw: 0, camPitch: 0.35,
     velY: 0, grounded: true,
+    shake: 0, fov: 65, bob: 0, vaultCd: 0,
     health: 100, maxHealth: 100, armor: 0,
     inCar: null,
     speed: 0,
@@ -103,7 +104,26 @@ LD.Player = function (scene) {
       let nx = this.pos.x + mv.x * spd * dt;
       let nz = this.pos.z + mv.z * spd * dt;
       const res = LD.world.collide(nx, nz, 0.7);
+      // Parkour vault: sprinting into something low while grounded hops you
+      // over it instead of grinding to a stop against the wall.
+      this.vaultCd -= dt;
+      if (res.hit && running && moving && this.grounded && this.vaultCd <= 0) {
+        this.velY = 10.5; this.grounded = false; this.vaultCd = 0.6;
+        this.pos.x += mv.x * 0.8; this.pos.z += mv.z * 0.8;
+        LD.audio.footstep && LD.audio.footstep(1);
+      }
       this.pos.x = res.x; this.pos.z = res.z;
+
+      // footsteps, timed off the stride
+      if (moving && this.grounded) {
+        this.bob += dt * (running ? 9.5 : 6.0);
+        if (this.bob > Math.PI) {
+          this.bob -= Math.PI;
+          LD.audio.footstep && LD.audio.footstep(running ? 0.75 : 0.45);
+        }
+      }
+      // running rattles the camera a little
+      this.shake = U.lerp(this.shake, running && moving ? 1 : 0, dt * 6);
 
       // gravity + jump
       if (this.grounded && LD.input.wasPressed('Space')) { this.velY = 9; this.grounded = false; }
@@ -124,17 +144,38 @@ LD.Player = function (scene) {
     },
 
     _followCam(camera) {
-      const dist = 8, height = 4.2;
+      const dist = 7.4, height = 4.0;
       const cp = Math.cos(this.camPitch), sp = Math.sin(this.camPitch);
       const ox = Math.sin(this.camYaw) * cp * dist;
       const oz = Math.cos(this.camYaw) * cp * dist;
       const oy = height + sp * dist;
-      let camX = this.pos.x + ox, camZ = this.pos.z + oz, camY = this.pos.y + oy;
-      // keep camera out of buildings (simple)
+      // over-the-shoulder: push the rig to the right of the aim line
+      const rx = Math.cos(this.camYaw), rz = -Math.sin(this.camYaw);
+      const shoulder = 1.5;
+      let camX = this.pos.x + ox + rx * shoulder;
+      let camZ = this.pos.z + oz + rz * shoulder;
+      let camY = this.pos.y + oy;
       const c = LD.world.collide(camX, camZ, 0.5);
       camX = c.x; camZ = c.z;
+
+      // sprint shake — small, high frequency, never nauseating
+      const t = performance.now() * 0.001;
+      const amp = this.shake * 0.11;
+      camX += Math.sin(t * 21) * amp;
+      camY += Math.sin(t * 27 + 1.3) * amp * 1.3;
+
       camera.position.lerp(new THREE.Vector3(camX, camY, camZ), 0.35);
-      camera.lookAt(this.pos.x, this.pos.y + 3.2, this.pos.z);
+      camera.lookAt(
+        this.pos.x + rx * shoulder * 0.55,
+        this.pos.y + 3.0 + Math.sin(t * 27) * amp * 0.6,
+        this.pos.z + rz * shoulder * 0.55);
+
+      // FOV opens up as you pick up speed — cheap but very effective
+      const targetFov = 65 + this.shake * 9;
+      this.fov = U.lerp(this.fov, targetFov, 0.08);
+      if (Math.abs(camera.fov - this.fov) > 0.01) {
+        camera.fov = this.fov; camera.updateProjectionMatrix();
+      }
     },
 
     _deadCam(camera) {

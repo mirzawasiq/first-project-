@@ -21,6 +21,7 @@ LD.hud = (function () {
     el.speedval = document.getElementById('speedval');
     el.bigflash = document.getElementById('bigflash');
     el.minimap = document.getElementById('minimap');
+    el.perf = document.getElementById('perf');
     mapCtx = el.minimap.getContext('2d');
   }
 
@@ -29,6 +30,10 @@ LD.hud = (function () {
 
   function setMoney(n) { el.money.textContent = U.money(n); }
   function setClock(s) { el.clock.textContent = s; }
+  function setQuality(q) { if (el.perf) el.perf.dataset.q = q; }
+  function setPerf(fps, q) {
+    if (el.perf) el.perf.textContent = Math.round(fps) + ' fps · ' + q;
+  }
   function setHealth(hp, armor) {
     el.hp.style.width = U.clamp(hp, 0, 100) + '%';
     el.ar.style.width = U.clamp(armor, 0, 100) + '%';
@@ -143,6 +148,6 @@ LD.hud = (function () {
 
   return {
     init, show, hide, setMoney, setHealth, setWanted, setWeapon, setClock,
-    mission, prompt, speedo, toast, bigFlash, clearFlash, drawMinimap,
+    mission, prompt, speedo, toast, bigFlash, clearFlash, drawMinimap, setQuality, setPerf,
   };
 })();
