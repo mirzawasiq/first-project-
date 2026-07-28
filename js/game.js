@@ -307,6 +307,7 @@ LD.game = (function () {
     LD.hud.speedo(!!player.inCar, player.inCar ? player.inCar.speedMph : 0);
     LD.hud.drawMinimap(player);
     LD.hud.setPerf(LD.quality.fps, LD.quality.label);
+    LD.hud.setLockHint(!LD.input.mouse.locked);
 
     // red vignette on hurt
     if (player.hurtFlash > 0) {

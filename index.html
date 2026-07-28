@@ -40,6 +40,7 @@
 
       <!-- Center prompt (enter car, etc.) -->
       <div id="prompt" class="prompt hidden"></div>
+      <div id="lockhint" class="lockhint hidden">Click to capture mouse · or use <b>Arrow Keys</b> / <b>right-drag</b> to look</div>
 
       <!-- Toast notifications -->
       <div id="toasts"></div>
@@ -62,7 +63,9 @@
             <h3>On Foot</h3>
             <ul>
               <li><b>WASD</b> Move</li>
-              <li><b>Mouse</b> Look</li>
+              <li><b>Mouse</b> Look (click to capture)</li>
+              <li><b>Arrow Keys</b> Rotate camera</li>
+              <li><b>Right-drag</b> Look (if mouse not captured)</li>
               <li><b>Shift</b> Sprint</li>
               <li><b>Space</b> Jump</li>
               <li><b>F</b> Enter vehicle</li>
@@ -77,7 +80,7 @@
               <li><b>A / D</b> Steer</li>
               <li><b>Space</b> Handbrake</li>
               <li><b>F</b> Exit vehicle</li>
-              <li><b>Mouse</b> Look around</li>
+              <li><b>Mouse / Arrows</b> Look</li>
             </ul>
           </div>
           <div class="col">
@@ -110,6 +113,7 @@
 
   <!-- Game modules (load order matters) -->
   <script src="js/utils.js"></script>
+  <script src="js/settings.js"></script>
   <script src="js/input.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/character.js"></script>

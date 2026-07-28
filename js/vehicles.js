@@ -257,10 +257,12 @@ LD.vehicles = (function () {
   function driveInput(car) {
     const c = car.control;
     c.throttle = 0; c.steer = 0;
-    if (LD.input.isDown('KeyW') || LD.input.isDown('ArrowUp')) c.throttle += 1;
-    if (LD.input.isDown('KeyS') || LD.input.isDown('ArrowDown')) c.throttle -= 1;
-    if (LD.input.isDown('KeyA') || LD.input.isDown('ArrowLeft')) c.steer += 1;
-    if (LD.input.isDown('KeyD') || LD.input.isDown('ArrowRight')) c.steer -= 1;
+    // NOTE: arrow keys are deliberately NOT bound here — they rotate the
+    // camera instead, on foot and in a vehicle alike.
+    if (LD.input.isDown('KeyW')) c.throttle += 1;
+    if (LD.input.isDown('KeyS')) c.throttle -= 1;
+    if (LD.input.isDown('KeyA')) c.steer += 1;
+    if (LD.input.isDown('KeyD')) c.steer -= 1;
     c.handbrake = LD.input.isDown('Space');
   }
 

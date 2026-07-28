@@ -31,7 +31,9 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
 | On foot | | In a vehicle | |
 |---|---|---|---|
 | **WASD** | Move | **W / S** | Gas / Brake–Reverse |
-| **Mouse** | Look around | **A / D** | Steer |
+| **Mouse** | Look (click to capture) | **A / D** | Steer |
+| **Arrow Keys** | Rotate camera | **Arrow Keys** | Rotate camera |
+| **Right-drag** | Look (mouse not captured) | | |
 | **Shift** | Sprint | **Space** | Handbrake |
 | **Space** | Jump | **F** | Exit vehicle |
 | **F** | Enter / steal a vehicle | **Mouse** | Look around |
@@ -39,6 +41,19 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
 | **1 / 2** | Fists / Pistol | | |
 | **M** | Pause / menu | **Esc** | Release mouse |
 | **Q** | Cycle weapon | **G** | Graphics preset |
+
+**Camera notes.** Mouse look needs Pointer Lock — click the game once to capture
+the mouse (**Esc** releases it). If the pointer isn't captured, you can still
+look with the **arrow keys** or by **holding the right mouse button and
+dragging**; a hint appears on screen whenever the mouse isn't captured.
+
+Camera feel is tunable live from the browser console:
+
+```js
+LD.settings.lookSensitivity = 0.004;  // default 0.0025
+LD.settings.invertY = true;           // inverted vertical look
+LD.settings.shoulder = 0;             // 0 = centred, 0.9 = over-the-shoulder
+```
 
 ---
 

@@ -68,10 +68,22 @@ LD.Player = function (scene) {
     },
 
     update(dt, camera) {
-      // ---- mouse look ----
+      // ---- look: mouse + keyboard, applied on foot AND while driving ----
       const m = LD._frameMouse;
-      this.camYaw -= m.dx * 0.0025;
-      this.camPitch = U.clamp(this.camPitch - m.dy * 0.0025, -0.15, 1.15);
+      const sens = LD.settings.lookSensitivity;
+      this.camYaw -= m.dx * sens;
+      // Pushing the mouse DOWN must look DOWN. camPitch raises the camera and
+      // tilts the view downward, so a downward delta has to ADD to it — the
+      // old '-' here made the vertical axis inverted.
+      const inv = LD.settings.invertY ? -1 : 1;
+      this.camPitch = U.clamp(this.camPitch + m.dy * sens * inv, -0.35, 1.25);
+
+      // arrow keys drive the camera too, so it is usable with no mouse at all
+      const kYaw = 2.4 * dt, kPit = 1.6 * dt;
+      if (LD.input.isDown('ArrowLeft'))  this.camYaw += kYaw;
+      if (LD.input.isDown('ArrowRight')) this.camYaw -= kYaw;
+      if (LD.input.isDown('ArrowUp'))    this.camPitch = U.clamp(this.camPitch - kPit, -0.35, 1.25);
+      if (LD.input.isDown('ArrowDown'))  this.camPitch = U.clamp(this.camPitch + kPit, -0.35, 1.25);
 
       if (this.dead || this.inCar) {
         // camera still handled elsewhere / by car; but dead body cam:
@@ -151,7 +163,7 @@ LD.Player = function (scene) {
       const oy = height + sp * dist;
       // over-the-shoulder: push the rig to the right of the aim line
       const rx = Math.cos(this.camYaw), rz = -Math.sin(this.camYaw);
-      const shoulder = 1.5;
+      const shoulder = LD.settings.shoulder;
       let camX = this.pos.x + ox + rx * shoulder;
       let camZ = this.pos.z + oz + rz * shoulder;
       let camY = this.pos.y + oy;

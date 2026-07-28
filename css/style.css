@@ -75,6 +75,14 @@ canvas#scene { display: block; width: 100%; height: 100%; }
 }
 .prompt b { color: #ffd23f; }
 
+.lockhint {
+  position: absolute; left: 50%; bottom: 12%; transform: translateX(-50%);
+  background: rgba(10,14,22,.72); border: 1px solid rgba(255,255,255,.18);
+  padding: 6px 14px; border-radius: 8px; font-size: 13px; color: #cfd6e4;
+  text-shadow: 0 1px 3px #000; white-space: nowrap;
+}
+.lockhint b { color: #ffd23f; font-family: "Consolas", monospace; }
+
 #toasts {
   position: absolute; right: 18px; bottom: 22px; width: 300px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
