@@ -23,6 +23,7 @@ LD.makeHuman = function (opts) {
   // slightly rough, non-metallic skin/cloth reads far better than flat Lambert
   const mat = (c, rough) => new THREE.MeshStandardMaterial({
     color: c, roughness: rough != null ? rough : 0.85, metalness: 0.0,
+    envMapIntensity: 0.35,     // cloth and skin barely reflect the sky
   });
   const skinM  = mat(skin, 0.72);
   const shirtM = mat(shirt, 0.9);
@@ -30,22 +31,38 @@ LD.makeHuman = function (opts) {
   const shoeM  = mat(0x14161c, 0.6);
   const hairM  = mat(hairC, 0.95);
 
-  // box helper whose pivot sits at the TOP of the box, so limbs
-  // rotate from the joint above them rather than their centre
-  function limb(w, h, d, m, taper) {
-    const g = new THREE.BoxGeometry(w, h, d);
-    g.translate(0, -h / 2, 0);
-    if (taper) {                      // narrow the far end a little
-      const p = g.attributes.position;
-      for (let i = 0; i < p.count; i++) {
-        if (p.getY(i) < -h * 0.4) { p.setX(i, p.getX(i) * taper); p.setZ(i, p.getZ(i) * taper); }
-      }
-      p.needsUpdate = true; g.computeVertexNormals();
-    }
-    const mesh = new THREE.Mesh(g, m);
+  /* Limbs and torso are built from CAPSULES (a tapered cylinder capped with
+     spheres), not boxes. Boxes are what made the old figure read as a robot:
+     hard square edges and visible gaps at every joint. A capsule has a round
+     silhouette from every angle and its sphere caps fill the joint, so a
+     bending knee or elbow stays continuous.
+     r128 predates CapsuleGeometry, so it is assembled by hand. */
+  function capsule(rTop, rBot, len, m, flatten) {
+    const g = new THREE.Group();
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, len, 12, 1, true), m);
+    shaft.position.y = -len / 2;
+    shaft.castShadow = true;
+    g.add(shaft);
+    const capA = new THREE.Mesh(new THREE.SphereGeometry(rTop, 12, 8), m);
+    capA.castShadow = true;
+    g.add(capA);
+    const capB = new THREE.Mesh(new THREE.SphereGeometry(rBot, 12, 8), m);
+    capB.position.y = -len;
+    capB.castShadow = true;
+    g.add(capB);
+    if (flatten) g.scale.z = flatten;     // limbs are slightly oval, not round
+    return g;
+  }
+
+  /* Rounded body mass: a sphere squashed into an ellipsoid. */
+  function blob(rx, ry, rz, m, y) {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), m);
+    mesh.scale.set(rx, ry, rz);
+    mesh.position.y = y || 0;
     mesh.castShadow = true;
     return mesh;
   }
+
   function box(w, h, d, m, y) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
     mesh.position.y = y || 0;
@@ -59,47 +76,64 @@ LD.makeHuman = function (opts) {
   const hips = new THREE.Group();
   hips.position.y = 1.82;
   root.add(hips);
-  hips.add(box(0.78, 0.42, 0.46, pantsM, -0.1));
+  hips.add(blob(0.42, 0.30, 0.26, pantsM, -0.08));
 
   // ---- torso ----
   const torso = new THREE.Group();
   hips.add(torso);
-  torso.add(box(0.8, 0.62, 0.44, shirtM, 0.32));          // waist
+  torso.add(blob(0.38, 0.36, 0.25, shirtM, 0.30));        // waist / midriff
   const chest = new THREE.Group();
   chest.position.y = 0.62;
   torso.add(chest);
-  chest.add(box(0.96, 0.72, 0.5, shirtM, 0.3));           // ribcage
-  // collar / shoulder yoke gives the silhouette some shape
-  chest.add(box(1.06, 0.18, 0.46, mat(shirt, 0.8), 0.66));
+  chest.add(blob(0.44, 0.40, 0.27, shirtM, 0.30));        // ribcage
+  // rounded deltoid caps instead of a square yoke
+  [-1, 1].forEach((sd) => {
+    // Object3D.add() returns the PARENT, so keep a reference to the child
+    const delt = blob(0.165, 0.145, 0.165, shirtM, 0.56);
+    delt.position.x = sd * 0.415;
+    chest.add(delt);
+  });
 
   // ---- head ----
   const neck = new THREE.Group();
-  neck.position.y = 0.74;
+  neck.position.y = 0.70;
   chest.add(neck);
-  neck.add(box(0.24, 0.16, 0.24, skinM, 0.08));
+  neck.add(capsule(0.10, 0.11, 0.09, skinM));
   const head = new THREE.Group();
-  head.position.y = 0.16;
+  head.position.y = 0.06;
   neck.add(head);
-  head.add(box(0.5, 0.56, 0.52, skinM, 0.28));
-  const hair = box(0.54, 0.18, 0.56, hairM, 0.6); head.add(hair);
-  hair.position.z = -0.01;
-  // brow + nose so the face has a front
-  const brow = box(0.52, 0.08, 0.06, hairM, 0.42); brow.position.z = 0.25; head.add(brow);
-  const nose = box(0.1, 0.12, 0.1, skinM, 0.26); nose.position.z = 0.28; head.add(nose);
+  // skull: an ellipsoid, slightly longer front-to-back like a real head
+  head.add(blob(0.26, 0.295, 0.275, skinM, 0.25));
+  const jaw = blob(0.20, 0.15, 0.22, skinM, 0.12); jaw.position.z = 0.02; head.add(jaw);
+  // hair as a skull cap that follows the curve rather than a slab
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), hairM);
+  hair.scale.set(0.275, 0.31, 0.29);
+  hair.position.set(0, 0.26, -0.012);
+  hair.castShadow = true;
+  head.add(hair);
+  // small nose + brow so there is a clear facing direction
+  const nose = blob(0.045, 0.05, 0.05, skinM, 0.22); nose.position.z = 0.235; head.add(nose);
+  const brow = blob(0.20, 0.028, 0.04, hairM, 0.30); brow.position.z = 0.185; head.add(brow);
+  const eyeM = mat(0x1b1f28, 0.35);
+  [-1, 1].forEach((sd) => {
+    const eye = blob(0.045, 0.045, 0.03, eyeM, 0.265);
+    eye.position.set(sd * 0.09, 0.265, 0.215);
+    head.add(eye);
+  });
 
   // ---- arms: shoulder -> upper -> elbow -> fore -> hand ----
   function makeArm(side) {
     const shoulder = new THREE.Group();
     shoulder.position.set(side * 0.58, 0.58, 0);
     chest.add(shoulder);
-    const upper = limb(0.26, 0.66, 0.28, shirtM);
+    const upper = capsule(0.135, 0.115, 0.62, shirtM, 0.92);
     shoulder.add(upper);
     const elbow = new THREE.Group();
-    elbow.position.y = -0.66;
+    elbow.position.y = -0.62;
     shoulder.add(elbow);
-    const fore = limb(0.22, 0.6, 0.24, skinM, 0.85);
+    const fore = capsule(0.115, 0.085, 0.58, skinM, 0.92);
     elbow.add(fore);
-    const hand = box(0.2, 0.22, 0.22, skinM, -0.7);
+    const hand = blob(0.095, 0.12, 0.07, skinM, -0.66);
     elbow.add(hand);
     return { shoulder, elbow, hand };
   }
@@ -110,15 +144,17 @@ LD.makeHuman = function (opts) {
     const hip = new THREE.Group();
     hip.position.set(side * 0.24, -0.24, 0);
     hips.add(hip);
-    const thigh = limb(0.38, 0.9, 0.42, pantsM);
+    const thigh = capsule(0.20, 0.155, 0.86, pantsM, 0.95);
     hip.add(thigh);
     const knee = new THREE.Group();
-    knee.position.y = -0.9;
+    knee.position.y = -0.86;
     hip.add(knee);
-    const shin = limb(0.32, 0.86, 0.34, pantsM, 0.9);
+    const shin = capsule(0.15, 0.10, 0.82, pantsM, 0.95);
     knee.add(shin);
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.56), shoeM);
-    foot.position.set(0, -0.88, 0.12);
+    // shoe: rounded, and longer than it is wide
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), shoeM);
+    foot.scale.set(0.13, 0.09, 0.27);
+    foot.position.set(0, -0.86, 0.10);
     foot.castShadow = true;
     knee.add(foot);
     return { hip, knee, foot };

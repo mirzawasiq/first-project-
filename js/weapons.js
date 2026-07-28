@@ -171,8 +171,8 @@ LD.weapons = (function () {
     // cars
     for (const car of LD.vehicles.cars) {
       if (car === player.inCar || car.destroyed) continue;
-      const c = car.pos.clone().setY(1);
-      const t = raySphere(origin, dir, c, Math.max(car.spec.w, car.spec.l) / 2);
+      const c = car.pos.clone().setY(car.spec.h);
+      const t = raySphere(origin, dir, c, car.spec.w * 0.62);
       if (t > 0.5 && t < bestT) { bestT = t; best = { kind: 'car', ref: car, point: origin.clone().addScaledVector(dir, t) }; }
     }
     // building/ground fallback endpoint

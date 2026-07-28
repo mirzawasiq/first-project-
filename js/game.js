@@ -21,7 +21,7 @@ LD.game = (function () {
     // like a real game" difference: lighting stops clipping to flat colour
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.98;
+    renderer.toneMappingExposure = 0.86;
     renderer.physicallyCorrectLights = false;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -193,7 +193,7 @@ LD.game = (function () {
       LD.hud.prompt('');
       return;
     }
-    const car = nearestCar(4.6);
+    const car = nearestCar(7.2);
     if (car) {
       LD.hud.prompt('Press <b>F</b> to ' + (car.isPolice ? 'steal police car' : 'enter vehicle'));
       if (LD.input.wasPressed('KeyF')) {
@@ -287,9 +287,9 @@ LD.game = (function () {
     const fwd = new THREE.Vector3(-Math.sin(car.heading), 0, -Math.cos(car.heading));
     const side = new THREE.Vector3(Math.cos(car.heading), 0, -Math.sin(car.heading));
     headlights.forEach((h, i) => {
-      const off = (i === 0 ? -1 : 1) * car.spec.w * 0.33;
+      const off = (i === 0 ? -1 : 1) * car.spec.w * 0.31;
       h.position.set(
-        car.pos.x + fwd.x * (car.spec.l / 2) + side.x * off, 1.05,
+        car.pos.x + fwd.x * (car.spec.l / 2) + side.x * off, car.dims.clear + car.spec.h * 0.78,
         car.pos.z + fwd.z * (car.spec.l / 2) + side.z * off);
       h.target.position.set(
         car.pos.x + fwd.x * 46 + side.x * off, -1.4, car.pos.z + fwd.z * 46 + side.z * off);

@@ -498,7 +498,7 @@ LD.world = (function () {
       u.bottom.value.copy(horizon);
     }
 
-    sun.intensity = (0.10 + day * 1.75) * Math.max(0.45, weatherLight) + weatherFlash * 2.2;
+    sun.intensity = (0.06 + day * 0.95) * Math.max(0.45, weatherLight) + weatherFlash * 1.6;
     sun.color.setHex(dusk ? 0xffa055 : 0xfff4e2);
     ambient.intensity = (0.10 + day * 0.16) * U.lerp(1, 0.86, 1 - weatherLight) + weatherFlash * 1.2;
     hemi.intensity = 0.10 + day * 0.22;
@@ -510,7 +510,7 @@ LD.world = (function () {
 
     // r128 has no global IBL knob, so scale each material's envMapIntensity:
     // reflections must fade with the sky or night looks lit like noon
-    const ibl = U.lerp(0.12, 1.0, day);
+    const ibl = U.lerp(0.08, 0.42, day);
     for (const fm of facadeMats) fm.envMapIntensity = ibl;
 
     // windows + lamps glow at night (bloom picks these up)

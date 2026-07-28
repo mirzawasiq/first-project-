@@ -106,8 +106,22 @@ LD.settings.staminaBoostDrain = 0;    // 0 = infinite boost
   knees fold only backwards, the torso pitches forward into a sprint, and the
   shoulders counter-rotate against the hips. Separate idle, walk, sprint,
   airborne, punch and two-handed aiming poses.
-- **Detailed vehicles** — semi-metallic paint, raked greenhouse, chrome rims,
-  bumpers and emissive lights.
+- **Real-world vehicle proportions** — the world is ~2.22 units per metre, and
+  cars are built to true dimensions against it (a sedan is 10.4 x 4.05 x 3.21,
+  i.e. 4.7 x 1.83 x 1.45 m). Height-to-length is 0.31, matching a real car;
+  the old bodies were 0.60, which is why they read as toy blocks. A person now
+  stands 1.25x the roof height, against 1.24x in reality.
+- **Car bodywork** — tapered body sides, a raked and pinched greenhouse with
+  tinted glass, separate bonnet and boot decks, wheel arches, bumpers, grille,
+  door mirrors, and alloy wheels sized to the arches.
+- **Vehicle dynamics** — the body rolls into corners, squats under power and
+  dives under braking, the front wheels steer visually, and paint dulls and
+  scuffs as the car takes damage. Collision is sampled at both axles instead
+  of one fat circle around the whole car.
+- **Human characters** — bodies are built from capsules and ellipsoids rather
+  than boxes, so limbs have a round silhouette and the sphere caps fill each
+  joint as a knee or elbow bends. Rounded skull with brow, nose and eyes, a
+  skull-cap of hair that follows the curve, tapered limbs and rounded shoes.
 
 ### Weather & atmosphere
 

@@ -80,7 +80,7 @@
       // heavily prefer a PARKED car: chasing a moving one across town
       // burns the whole session. Mild bonus for a quicker top speed.
       const moving = Math.abs(c.speed) * 6;
-      const slowCar = fast ? (46 - c.spec.maxF) * 0.7 : 0;
+      const slowCar = fast ? (88 - c.spec.maxF) * 0.4 : 0;
       const score = d + moving + slowCar;
       if (score < bs) { bs = score; best = c; }
     }
@@ -150,8 +150,8 @@
     if (dist < 10) {
       set('KeyA', err > 0.03);
       set('KeyD', err < -0.03);
-      set('KeyW', car.speed < 5);
-      set('KeyS', car.speed > 7);
+      set('KeyW', car.speed < 8);
+      set('KeyS', car.speed > 12);
       set('Space', false);
       return dist;
     }
@@ -161,11 +161,11 @@
     // CRITICAL: steering authority scales with speed, so a stopped car can
     // only turn once it is rolling. Always accelerate when slow, otherwise
     // a misaligned car deadlocks (brake -> no speed -> no steering).
-    const slow = Math.abs(car.speed) < 9;
+    const slow = Math.abs(car.speed) < 14;
     const tight = Math.abs(err) > 1.15;
-    const overrunning = dist < 14 && car.speed > 20;   // ease into the marker
+    const overrunning = dist < 20 && car.speed > 32;   // ease into the marker
     set('KeyW', !overrunning && (slow || (!tight && dist > 4)));
-    set('KeyS', !slow && (overrunning || (tight && car.speed > 22)));
+    set('KeyS', !slow && (overrunning || (tight && car.speed > 36)));
     set('Space', false);
     return dist;
   }
