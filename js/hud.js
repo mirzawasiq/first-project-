@@ -12,6 +12,8 @@ LD.hud = (function () {
     el.clock = document.getElementById('clock');
     el.hp = document.getElementById('hpbar');
     el.ar = document.getElementById('arbar');
+    el.st = document.getElementById('stbar');
+    el.speedlines = document.getElementById('speedlines');
     el.weaponName = document.getElementById('weaponName');
     el.ammo = document.getElementById('ammo');
     el.mission = document.getElementById('mission');
@@ -41,6 +43,14 @@ LD.hud = (function () {
   function setHealth(hp, armor) {
     el.hp.style.width = U.clamp(hp, 0, 100) + '%';
     el.ar.style.width = U.clamp(armor, 0, 100) + '%';
+  }
+  function setStamina(v) {
+    if (!el.st) return;
+    el.st.style.width = U.clamp(v, 0, 100) + '%';
+    el.st.classList.toggle('spent', v < LD.settings.staminaToBoost);
+  }
+  function setBoosting(on) {
+    if (el.speedlines) el.speedlines.classList.toggle('on', !!on);
   }
   function setWanted(stars) {
     let s = '';
@@ -152,6 +162,6 @@ LD.hud = (function () {
 
   return {
     init, show, hide, setMoney, setHealth, setWanted, setWeapon, setClock,
-    mission, prompt, speedo, toast, bigFlash, clearFlash, drawMinimap, setQuality, setPerf, setLockHint,
+    mission, prompt, speedo, toast, bigFlash, clearFlash, drawMinimap, setQuality, setPerf, setLockHint, setStamina, setBoosting,
   };
 })();

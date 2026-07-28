@@ -14,6 +14,8 @@ LD.Player = function (scene) {
     camYaw: 0, camPitch: 0.35,
     velY: 0, grounded: true,
     shake: 0, fov: 65, bob: 0, vaultCd: 0,
+    curSpeed: 0,                 // actual speed, eased toward the target
+    stamina: 100, boostT: 0, boostCd: 0, boosting: false,
     health: 100, maxHealth: 100, armor: 0,
     inCar: null,
     speed: 0,
@@ -101,16 +103,52 @@ LD.Player = function (scene) {
       if (LD.input.isDown('KeyD')) mv.add(right);
       if (LD.input.isDown('KeyA')) mv.sub(right);
 
+      const S = LD.settings;
       const running = LD.input.isDown('ShiftLeft') || LD.input.isDown('ShiftRight');
-      const spd = running ? 12 : 6;
       let moving = mv.lengthSq() > 0.001;
-      if (moving) {
-        mv.normalize();
-        this.yaw = Math.atan2(mv.x, mv.z);
-        this.speed = spd;
-      } else {
-        this.speed = 0;
+      if (moving) { mv.normalize(); this.yaw = Math.atan2(mv.x, mv.z); }
+
+      // ---- BOOST ----------------------------------------------------
+      // Sprint + Space = surge forward (GTA-style). Space on its own is
+      // still a jump, so the old control is untouched. E always boosts.
+      this.boostCd -= dt;
+      // wasPressed() CONSUMES the key edge, so read Space exactly once and
+      // decide afterwards whether it was a boost or a jump — calling it
+      // inside the boost condition swallowed the press and killed jumping.
+      const spaceEdge = LD.input.wasPressed('Space');
+      const wantBoost = LD.input.wasPressed('KeyE') || (spaceEdge && running && moving);
+      let spaceUsedForBoost = false;
+      if (wantBoost && moving && this.boostCd <= 0 && this.stamina >= S.staminaToBoost) {
+        this.boostT = S.boostTime;
+        this.boostCd = S.boostCooldown;
+        spaceUsedForBoost = spaceEdge;
+        LD.audio.whoosh && LD.audio.whoosh();
       }
+      if (this.boostT > 0 && moving && this.stamina > 0) {
+        this.boostT -= dt;
+        this.stamina -= S.staminaBoostDrain * dt;
+      } else {
+        this.boostT = 0;
+      }
+      this.boosting = this.boostT > 0;
+
+      // stamina: drains while sprinting, recovers otherwise
+      if (!this.boosting) {
+        if (running && moving) this.stamina -= S.staminaRunDrain * dt;
+        else this.stamina += S.staminaRegen * dt;
+      }
+      this.stamina = U.clamp(this.stamina, 0, S.staminaMax);
+
+      // ---- speed with real acceleration ------------------------------
+      let target = 0;
+      if (moving) {
+        target = this.boosting ? S.boostSpeed : (running && this.stamina > 0 ? S.runSpeed : S.walkSpeed);
+      }
+      // step toward the target at a fixed rate — frame-rate independent
+      if (target > this.curSpeed) this.curSpeed = Math.min(target, this.curSpeed + S.accel * dt);
+      else this.curSpeed = Math.max(target, this.curSpeed - S.decel * dt);
+      const spd = this.curSpeed;
+      this.speed = spd;
 
       // integrate horizontal
       let nx = this.pos.x + mv.x * spd * dt;
@@ -119,7 +157,7 @@ LD.Player = function (scene) {
       // Parkour vault: sprinting into something low while grounded hops you
       // over it instead of grinding to a stop against the wall.
       this.vaultCd -= dt;
-      if (res.hit && running && moving && this.grounded && this.vaultCd <= 0) {
+      if (res.hit && (running || this.boosting) && moving && this.grounded && this.vaultCd <= 0) {
         this.velY = 10.5; this.grounded = false; this.vaultCd = 0.6;
         this.pos.x += mv.x * 0.8; this.pos.z += mv.z * 0.8;
         LD.audio.footstep && LD.audio.footstep(1);
@@ -127,18 +165,20 @@ LD.Player = function (scene) {
       this.pos.x = res.x; this.pos.z = res.z;
 
       // footsteps, timed off the stride
-      if (moving && this.grounded) {
-        this.bob += dt * (running ? 9.5 : 6.0);
+      if (moving && this.grounded && spd > 0.5) {
+        this.bob += dt * (3.2 + spd * 0.42);          // cadence follows speed
         if (this.bob > Math.PI) {
           this.bob -= Math.PI;
-          LD.audio.footstep && LD.audio.footstep(running ? 0.75 : 0.45);
+          LD.audio.footstep && LD.audio.footstep(this.boosting ? 1 : (running ? 0.75 : 0.45));
         }
       }
       // running rattles the camera a little
-      this.shake = U.lerp(this.shake, running && moving ? 1 : 0, dt * 6);
+      // camera rattle scales with how fast you're actually going
+      const shakeTarget = moving ? U.clamp((spd - S.walkSpeed) / (S.boostSpeed - S.walkSpeed), 0, 1) : 0;
+      this.shake = U.lerp(this.shake, this.boosting ? 1.6 : shakeTarget, dt * 6);
 
       // gravity + jump
-      if (this.grounded && LD.input.wasPressed('Space')) { this.velY = 9; this.grounded = false; }
+      if (this.grounded && spaceEdge && !spaceUsedForBoost) { this.velY = 9.5; this.grounded = false; }
       this.velY -= 26 * dt;
       this.pos.y += this.velY * dt;
       if (this.pos.y <= 0) { this.pos.y = 0; this.velY = 0; this.grounded = true; }
@@ -148,7 +188,7 @@ LD.Player = function (scene) {
       human.group.rotation.y = this.yaw;
       human.aiming = (LD.weapons && LD.weapons.currentIsGun());
       if (!this.grounded) human.airborne(this.velY > 0);
-      else human.animate(dt, moving ? spd : 0);
+      else human.animate(dt, spd);
 
       this._followCam(camera);
 
@@ -183,7 +223,7 @@ LD.Player = function (scene) {
         this.pos.z + rz * shoulder * 0.55);
 
       // FOV opens up as you pick up speed — cheap but very effective
-      const targetFov = 65 + this.shake * 9;
+      const targetFov = 65 + this.shake * 9;   // boost pushes shake past 1
       this.fov = U.lerp(this.fov, targetFov, 0.08);
       if (Math.abs(camera.fov - this.fov) > 0.01) {
         camera.fov = this.fov; camera.updateProjectionMatrix();

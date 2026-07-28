@@ -125,6 +125,24 @@ LD.audio = (function () {
     ambSrc.start();
   }
 
+  // rising filtered-noise sweep for the sprint boost
+  function whoosh() {
+    ensure(); if (!enabled || !ctx) return;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(0.55);
+    const g = ctx.createGain();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.Q.value = 1.1;
+    f.frequency.setValueAtTime(300, ctx.currentTime);
+    f.frequency.exponentialRampToValueAtTime(2400, ctx.currentTime + 0.32);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0005, ctx.currentTime + 0.55);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start();
+    blip(150, 0.16, 'sine', 0.14);
+  }
+
   function punch() {
     if (!enabled || !ctx) return;
     const src = ctx.createBufferSource();
@@ -210,7 +228,7 @@ LD.audio = (function () {
 
   return {
     resume, gunshot, punch, crash, cash, pickup, hurt,
-    footstep, thunder, setRain, startAmbience,
+    footstep, thunder, setRain, startAmbience, whoosh,
     startEngine, updateEngine, stopEngine, startSiren, stopSiren,
     get on() { return enabled; }
   };

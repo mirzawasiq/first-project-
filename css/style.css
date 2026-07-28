@@ -41,6 +41,8 @@ canvas#scene { display: block; width: 100%; height: 100%; }
 .fill { height: 100%; width: 100%; transition: width .18s ease; }
 .fill.hp { background: linear-gradient(90deg,#4be07a,#7CFC7A); }
 .fill.ar { background: linear-gradient(90deg,#4aa8ff,#8fd0ff); }
+.fill.st { background: linear-gradient(90deg,#ffb03f,#ffd77a); }
+.fill.st.spent { background: linear-gradient(90deg,#8a5a2a,#b07a3a); }
 .weapon {
   margin-top: 8px; display: inline-flex; align-items: center; gap: 8px;
   background: rgba(0,0,0,.5); border: 1px solid rgba(255,255,255,.2);
@@ -82,6 +84,21 @@ canvas#scene { display: block; width: 100%; height: 100%; }
   text-shadow: 0 1px 3px #000; white-space: nowrap;
 }
 .lockhint b { color: #ffd23f; font-family: "Consolas", monospace; }
+
+/* radial streaks that rush past while boosting */
+.speedlines {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  transition: opacity .18s ease;
+  background:
+    repeating-conic-gradient(from 0deg at 50% 50%,
+      rgba(255,255,255,0) 0deg 3deg,
+      rgba(255,255,255,.16) 3deg 3.6deg,
+      rgba(255,255,255,0) 3.6deg 7deg);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 26%, #000 72%);
+  mask-image: radial-gradient(circle at 50% 50%, transparent 26%, #000 72%);
+}
+.speedlines.on { opacity: 1; animation: rush .5s linear infinite; }
+@keyframes rush { from { transform: scale(1); } to { transform: scale(1.12); } }
 
 #toasts {
   position: absolute; right: 18px; bottom: 22px; width: 300px;

@@ -138,12 +138,12 @@ LD.makeHuman = function (opts) {
       const s = speed || 0;
       const moving = s > 0.4;
       // stride frequency rises with speed but flattens out at a sprint
-      const freq = moving ? 1.6 + Math.min(s, 14) * 0.52 : 1.6;
+      const freq = moving ? 1.6 + Math.min(s, 30) * 0.40 : 1.6;
       this._phase += dt * freq;
       const th = this._phase;
 
       // how "run-like" the gait is: 0 walk, 1 full sprint
-      const run = U.clamp((s - 5) / 7, 0, 1);
+      const run = U.clamp((s - 7) / 11, 0, 1);   // 0 at a walk, 1 by full sprint
       const amp = moving ? U.lerp(0.55, 1.15, run) : 0;
 
       // ---- legs ----

@@ -35,6 +35,7 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
 | **Arrow Keys** | Rotate camera | **Arrow Keys** | Rotate camera |
 | **Right-drag** | Look (mouse not captured) | | |
 | **Shift** | Sprint | **Space** | Handbrake |
+| **Shift+Space** / **E** | **BOOST** | | |
 | **Space** | Jump | **F** | Exit vehicle |
 | **F** | Enter / steal a vehicle | **Mouse** | Look around |
 | **Left Click** | Punch / Shoot | | |
@@ -47,12 +48,24 @@ the mouse (**Esc** releases it). If the pointer isn't captured, you can still
 look with the **arrow keys** or by **holding the right mouse button and
 dragging**; a hint appears on screen whenever the mouse isn't captured.
 
-Camera feel is tunable live from the browser console:
+**Movement.** Walking is 8.5 u/s, sprinting (hold **Shift**) is 17 u/s, and a
+**boost** takes you to 28 u/s for about 2.4 seconds. Trigger a boost with
+**Shift+Space** while running, or **E** at any time. Boosting drains the amber
+**ST** (stamina) bar; sprinting drains it slowly and it refills when you ease
+off. Speed builds and bleeds off with real acceleration rather than snapping.
+
+Camera and movement are tunable live from the browser console:
 
 ```js
 LD.settings.lookSensitivity = 0.004;  // default 0.0025
 LD.settings.invertY = true;           // inverted vertical look
 LD.settings.shoulder = 0;             // 0 = centred, 0.9 = over-the-shoulder
+
+LD.settings.walkSpeed = 10;           // default 8.5
+LD.settings.runSpeed = 22;            // default 17
+LD.settings.boostSpeed = 40;          // default 28
+LD.settings.boostTime = 4;            // seconds per surge (default 2.4)
+LD.settings.staminaBoostDrain = 0;    // 0 = infinite boost
 ```
 
 ---

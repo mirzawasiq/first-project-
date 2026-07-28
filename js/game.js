@@ -301,6 +301,8 @@ LD.game = (function () {
   function updateHUD() {
     LD.hud.setMoney(money);
     LD.hud.setHealth(player.health, player.armor);
+    LD.hud.setStamina(player.stamina);
+    LD.hud.setBoosting(player.boosting && !player.inCar);
     LD.hud.setWanted(LD.police.stars);
     LD.hud.setWeapon(LD.weapons.currentName(), LD.weapons.currentIsGun() ? LD.weapons.ammoText() : '');
     LD.hud.setClock(LD.world.timeString() + '  ' + LD.weather.label);
