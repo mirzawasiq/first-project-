@@ -37,18 +37,110 @@ LD.audio = (function () {
     o.start(); o.stop(ctx.currentTime + dur + 0.02);
   }
 
-  function gunshot() {
+  function gunshot(kind) {
     if (!enabled || !ctx) return;
+    // each weapon gets its own envelope + filter so they read differently
+    const p = kind === 'shotgun' ? { d: 0.34, f: 900,  g: 0.75, t: 70  }
+            : kind === 'smg'     ? { d: 0.10, f: 2600, g: 0.34, t: 170 }
+            :                      { d: 0.18, f: 1800, g: 0.50, t: 120 };
     const src = ctx.createBufferSource();
-    src.buffer = noiseBuffer(0.18);
+    src.buffer = noiseBuffer(p.d);
     const g = ctx.createGain();
     const f = ctx.createBiquadFilter();
-    f.type = 'lowpass'; f.frequency.value = 1800;
-    g.gain.setValueAtTime(0.5, ctx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+    f.type = 'lowpass'; f.frequency.value = p.f;
+    g.gain.setValueAtTime(p.g, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + p.d);
     src.connect(f); f.connect(g); g.connect(master);
     src.start();
-    blip(120, 0.08, 'sawtooth', 0.25);
+    blip(p.t, 0.08, 'sawtooth', 0.25);
+  }
+
+  // ---- footsteps: short filtered thumps, pitch varied per step ----
+  function footstep(strength) {
+    if (!enabled || !ctx) return;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(0.07);
+    const g = ctx.createGain();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 320 + Math.random() * 260;
+    f.Q.value = 1.4;
+    const vol = 0.09 * (strength || 0.5);
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0005, ctx.currentTime + 0.07);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start();
+  }
+
+  // ---- thunder: low rumble, delayed like real distance ----
+  function thunder(distance) {
+    ensure(); if (!enabled || !ctx) return;
+    const delay = (distance || 1) * 0.6;
+    setTimeout(() => {
+      if (!ctx) return;
+      const dur = 1.6 + Math.random() * 1.6;
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuffer(dur);
+      const g = ctx.createGain();
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = 190;
+      const peak = 0.5 / (1 + (distance || 1) * 0.5);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.linearRampToValueAtTime(peak, ctx.currentTime + 0.12);
+      g.gain.exponentialRampToValueAtTime(0.0005, ctx.currentTime + dur);
+      src.connect(f); f.connect(g); g.connect(master);
+      src.start();
+    }, delay * 1000);
+  }
+
+  // ---- continuous rain hiss, level driven by the weather system ----
+  let rainSrc = null, rainGain = null;
+  function setRain(level) {
+    ensure(); if (!enabled || !ctx) return;
+    if (!rainSrc) {
+      rainSrc = ctx.createBufferSource();
+      rainSrc.buffer = noiseBuffer(3);
+      rainSrc.loop = true;
+      rainGain = ctx.createGain();
+      rainGain.gain.value = 0;
+      const f = ctx.createBiquadFilter();
+      f.type = 'highpass'; f.frequency.value = 900;
+      rainSrc.connect(f); f.connect(rainGain); rainGain.connect(master);
+      rainSrc.start();
+    }
+    rainGain.gain.setTargetAtTime(level * 0.14, ctx.currentTime, 0.6);
+  }
+
+  // ---- low city hum so the world is never silent ----
+  let ambSrc = null;
+  function startAmbience() {
+    ensure(); if (!enabled || !ctx || ambSrc) return;
+    ambSrc = ctx.createBufferSource();
+    ambSrc.buffer = noiseBuffer(4);
+    ambSrc.loop = true;
+    const g = ctx.createGain(); g.gain.value = 0.022;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.value = 320;
+    ambSrc.connect(f); f.connect(g); g.connect(master);
+    ambSrc.start();
+  }
+
+  // rising filtered-noise sweep for the sprint boost
+  function whoosh() {
+    ensure(); if (!enabled || !ctx) return;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(0.55);
+    const g = ctx.createGain();
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.Q.value = 1.1;
+    f.frequency.setValueAtTime(300, ctx.currentTime);
+    f.frequency.exponentialRampToValueAtTime(2400, ctx.currentTime + 0.32);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.22, ctx.currentTime + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0005, ctx.currentTime + 0.55);
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start();
+    blip(150, 0.16, 'sine', 0.14);
   }
 
   function punch() {
@@ -136,6 +228,7 @@ LD.audio = (function () {
 
   return {
     resume, gunshot, punch, crash, cash, pickup, hurt,
+    footstep, thunder, setRain, startAmbience, whoosh,
     startEngine, updateEngine, stopEngine, startSiren, stopSiren,
     get on() { return enabled; }
   };

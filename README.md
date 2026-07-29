@@ -31,13 +31,42 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
 | On foot | | In a vehicle | |
 |---|---|---|---|
 | **WASD** | Move | **W / S** | Gas / Brake–Reverse |
-| **Mouse** | Look around | **A / D** | Steer |
+| **Mouse** | Look (click to capture) | **A / D** | Steer |
+| **Arrow Keys** | Rotate camera | **Arrow Keys** | Rotate camera |
+| **Right-drag** | Look (mouse not captured) | | |
 | **Shift** | Sprint | **Space** | Handbrake |
+| **Shift+Space** / **E** | **BOOST** | | |
 | **Space** | Jump | **F** | Exit vehicle |
 | **F** | Enter / steal a vehicle | **Mouse** | Look around |
 | **Left Click** | Punch / Shoot | | |
 | **1 / 2** | Fists / Pistol | | |
 | **M** | Pause / menu | **Esc** | Release mouse |
+| **Q** | Cycle weapon | **G** | Graphics preset |
+
+**Camera notes.** Mouse look needs Pointer Lock — click the game once to capture
+the mouse (**Esc** releases it). If the pointer isn't captured, you can still
+look with the **arrow keys** or by **holding the right mouse button and
+dragging**; a hint appears on screen whenever the mouse isn't captured.
+
+**Movement.** Walking is 8.5 u/s, sprinting (hold **Shift**) is 17 u/s, and a
+**boost** takes you to 28 u/s for about 2.4 seconds. Trigger a boost with
+**Shift+Space** while running, or **E** at any time. Boosting drains the amber
+**ST** (stamina) bar; sprinting drains it slowly and it refills when you ease
+off. Speed builds and bleeds off with real acceleration rather than snapping.
+
+Camera and movement are tunable live from the browser console:
+
+```js
+LD.settings.lookSensitivity = 0.004;  // default 0.0025
+LD.settings.invertY = true;           // inverted vertical look
+LD.settings.shoulder = 0;             // 0 = centred, 0.9 = over-the-shoulder
+
+LD.settings.walkSpeed = 10;           // default 8.5
+LD.settings.runSpeed = 22;            // default 17
+LD.settings.boostSpeed = 40;          // default 28
+LD.settings.boostTime = 4;            // seconds per surge (default 2.4)
+LD.settings.staminaBoostDrain = 0;    // 0 = infinite boost
+```
 
 ---
 
@@ -62,6 +91,74 @@ Click **ENTER THE CITY**, then click the screen to lock the mouse and go.
   every window and street lamp lights up.
 - **Synthesized audio** — engine, gunshots, punches, crashes, cash, and a police
   siren, all generated live with the Web Audio API (no sound files).
+
+### Visuals
+
+- **Physically-shaded rendering** — sRGB output with ACES filmic tone mapping,
+  soft real-time sun shadows, and a shadow frustum that travels with you so a
+  600-unit city still gets crisp contact shadows.
+- **Bloom** — lit windows, headlights and police strobes glow after dark
+  (`UnrealBloomPass`, dialled right down in daylight).
+- **Gradient sky dome** that shifts through dawn, midday, golden hour and night.
+- **Jointed characters** — hips → torso → chest → neck, two-segment arms and
+  legs, so knees fold and elbows bend.
+- **Procedural run cycle** — stride frequency and amplitude scale with speed,
+  knees fold only backwards, the torso pitches forward into a sprint, and the
+  shoulders counter-rotate against the hips. Separate idle, walk, sprint,
+  airborne, punch and two-handed aiming poses.
+- **Real-world vehicle proportions** — the world is ~2.22 units per metre, and
+  cars are built to true dimensions against it (a sedan is 10.4 x 4.05 x 3.21,
+  i.e. 4.7 x 1.83 x 1.45 m). Height-to-length is 0.31, matching a real car;
+  the old bodies were 0.60, which is why they read as toy blocks. A person now
+  stands 1.25x the roof height, against 1.24x in reality.
+- **Car bodywork** — tapered body sides, a raked and pinched greenhouse with
+  tinted glass, separate bonnet and boot decks, wheel arches, bumpers, grille,
+  door mirrors, and alloy wheels sized to the arches.
+- **Vehicle dynamics** — the body rolls into corners, squats under power and
+  dives under braking, the front wheels steer visually, and paint dulls and
+  scuffs as the car takes damage. Collision is sampled at both axles instead
+  of one fat circle around the whole car.
+- **Human characters** — bodies are built from capsules and ellipsoids rather
+  than boxes, so limbs have a round silhouette and the sphere caps fill each
+  joint as a knee or elbow bends. Rounded skull with brow, nose and eyes, a
+  skull-cap of hair that follows the curve, tapered limbs and rounded shoes.
+
+### Weather & atmosphere
+
+- **Dynamic weather system** — clear, cloudy, overcast, rain, thunderstorm and
+  fog, rolling through plausible transitions (it never jumps clear → storm) with
+  every channel eased, not snapped.
+- **Wet roads** — rain lowers the asphalt's roughness and raises its
+  reflectivity so the street picks up the sky and the lights.
+- **Rain** as a recycled point cloud that follows you, plus wind-driven drift.
+- **Thunderstorms** with lightning that actually lights the scene and thunder
+  delayed by distance.
+- **Volumetric-feel fog** that closes in with the weather.
+- **Drifting clouds**, **stars** on clear nights (hidden by cloud cover), and a
+  **moon** that tracks the time of day.
+- **Car headlights** — real spotlights that switch on at dusk or in rain.
+- **Neon signs** on the buildings, some with a dying, flickering tube.
+- **Street lamp pools** on the pavement after dark.
+- **Environment reflections** via a PMREM environment map.
+
+### Combat & sandbox
+
+- **Four weapons** — fists, pistol, shotgun (7-pellet spread, real kick) and a
+  full-auto SMG. Switch with **1-4** or cycle with **Q**.
+- **World pickups** — health, armour, ammo, cash and weapon crates that glow at
+  night and respawn elsewhere after you take them.
+
+### Performance
+
+- **Four graphics presets** (Low / Medium / High / Ultra) — press **G** to cycle.
+- **Adaptive quality**: it samples the real frame rate and steps the preset down
+  when the machine can't hold up, then back up when it comfortably can.
+- Starting preset is guessed from the device (mobile and low-core machines start
+  lower), and a live **fps + preset readout** sits under the clock.
+- Buildings **share materials** with tiling baked into their UVs, instead of
+  cloning a texture per building.
+
+![Night in Liberty](docs/night.png)
 
 ---
 
@@ -113,12 +210,17 @@ index.html          Entry point, HUD markup, script loading
 bot/                Autoplay bot (brain.js = AI, autoplay.js = runner)
 css/style.css       HUD, menus, and overlay styling
 lib/three.min.js    Vendored Three.js (MIT)
+lib/pp/             Vendored post-processing passes (bloom, FXAA)
 js/
   utils.js          Math helpers, palettes
   input.js          Keyboard + pointer-lock mouse look
   audio.js          Web Audio synthesized SFX (engine, siren, guns…)
-  world.js          City generation, road graph, collision, day/night
-  player.js         Low-poly human factory + on-foot player & camera
+  quality.js        Graphics presets + adaptive performance scaling
+  world.js          City generation, road graph, collision, day/night, neon
+  weather.js        Weather state machine, rain, clouds, stars, lightning
+  pickups.js        Health / armour / ammo / cash / weapon crates
+  character.js      Jointed humanoid rig + procedural run/idle/aim animation
+  player.js         On-foot player controller & camera
   vehicles.js       Car factory, arcade physics, chase camera
   traffic.js        AI traffic + pedestrians
   weapons.js        Effects (fx) + fists/pistol combat
@@ -129,6 +231,28 @@ js/
 ```
 
 ---
+
+## 🧭 Scope & honest limits
+
+This is a **WebGL** game running on Three.js in a browser tab, with everything
+generated procedurally in code. Some things people ask for are simply not
+available in that environment, and it is better to say so than to imply
+otherwise:
+
+- **No ray tracing, no Lumen-style global illumination, no Nanite.** Those are
+  Unreal Engine features backed by dedicated hardware paths. What this uses
+  instead: PBR materials, a PMREM environment map for reflections, soft
+  shadow maps, bloom and filmic tone mapping.
+- **No 8K textures.** Browser memory and upload bandwidth make that
+  counter-productive; textures here are procedural canvases (256–512px) that
+  tile.
+- **No skeletal facial animation, hair simulation or cloth physics.** The
+  characters use a procedurally animated jointed rig, not a skinned mesh with
+  blend shapes.
+- **Hundreds of pedestrians, not thousands.** Density is tuned to hold a
+  playable frame rate; the adaptive quality system protects that budget.
+
+Everything else in this README is implemented and testable in the repo.
 
 ## ⚖️ A note on "GTA"
 

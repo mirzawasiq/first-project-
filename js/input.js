@@ -2,7 +2,8 @@
 LD.input = (function () {
   const keys = {};        // held keys, lowercase
   const pressed = {};     // edge-triggered this frame
-  const mouse = { dx: 0, dy: 0, down: false, downEdge: false, locked: false };
+  const mouse = { dx: 0, dy: 0, down: false, downEdge: false, locked: false, rmb: false };
+  let lastX = 0, lastY = 0, havePos = false;
 
   let canvas = null;
 
@@ -29,9 +30,20 @@ LD.input = (function () {
     if (mouse.locked) {
       mouse.dx += e.movementX || 0;
       mouse.dy += e.movementY || 0;
+    } else if (mouse.rmb && havePos) {
+      // Fallback when Pointer Lock isn't available (or the user pressed Esc):
+      // drag with the RIGHT button to look around. Without this the camera is
+      // completely frozen whenever the pointer isn't captured.
+      mouse.dx += e.clientX - lastX;
+      mouse.dy += e.clientY - lastY;
     }
+    lastX = e.clientX; lastY = e.clientY; havePos = true;
   }
   function onMouseDown(e) {
+    if (e.button === 2) {                 // right button = drag-look
+      if (!canvas || e.target === canvas) { mouse.rmb = true; e.preventDefault(); }
+      return;
+    }
     if (e.button !== 0) return;
     // Only clicks on the game canvas count as an attack. Without this, menu
     // clicks (e.g. the start button) bubble up to window and are read as a
@@ -40,7 +52,10 @@ LD.input = (function () {
     if (!mouse.down) mouse.downEdge = true;
     mouse.down = true;
   }
-  function onMouseUp(e) { if (e.button === 0) mouse.down = false; }
+  function onMouseUp(e) {
+    if (e.button === 0) mouse.down = false;
+    if (e.button === 2) mouse.rmb = false;
+  }
 
   function onPointerLockChange() {
     mouse.locked = (document.pointerLockElement === canvas);
@@ -61,6 +76,8 @@ LD.input = (function () {
     window.addEventListener('mouseup', onMouseUp);
     document.addEventListener('pointerlockchange', onPointerLockChange);
     canvas.addEventListener('click', requestLock);
+    // right-drag look would otherwise be interrupted by the context menu
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     // blur clears held keys to avoid stuck movement
     window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
   }

@@ -18,7 +18,7 @@ LD.traffic = (function () {
       const type = U.pick(['sedan', 'sedan', 'sports', 'truck']);
       const car = LD.vehicles.Car(type, U.pick(U.CAR_COLORS), rp.x, rp.z, U.rand(0, Math.PI * 2));
       const from = LD.world.nearestNode(rp.x, rp.z);
-      car.ai = { from, target: pickNextNode(from, null), cruise: U.rand(12, 22) };
+      car.ai = { from, target: pickNextNode(from, null), cruise: U.rand(26, 42) };
       car.isTraffic = true;
     }
   }
@@ -30,7 +30,7 @@ LD.traffic = (function () {
     // lane offset to the right of travel
     const dx = tx - car.pos.x, dz = tz - car.pos.z;
     const dist = Math.hypot(dx, dz);
-    if (dist < 6) {
+    if (dist < 9) {
       a.from = a.target;
       a.target = pickNextNode(a.from, a.prev);
       a.prev = a.from;
@@ -51,13 +51,13 @@ LD.traffic = (function () {
       const ox = other.pos.x - car.pos.x, oz = other.pos.z - car.pos.z;
       const ahead = ox * fwd.x + oz * fwd.z;
       const d2 = ox * ox + oz * oz;
-      if (ahead > 0 && d2 < 64) { throttle = -0.3; break; }
+      if (ahead > 0 && d2 < 260) { throttle = -0.3; break; }   // ~16 units
     }
     // brake near player on foot
     if (player && !player.inCar && !player.dead) {
       const px = player.pos.x - car.pos.x, pz = player.pos.z - car.pos.z;
       const ahead = px * fwd.x + pz * fwd.z;
-      if (ahead > 0 && (px * px + pz * pz) < 36) throttle = -0.6;
+      if (ahead > 0 && (px * px + pz * pz) < 150) throttle = -0.6;
     }
 
     car.control.throttle = throttle;
@@ -145,7 +145,7 @@ LD.traffic = (function () {
 
       // squashed by cars
       for (const car of LD.vehicles.cars) {
-        if (Math.abs(car.speed) > 6 && car.pos.distanceTo(p.pos) < 2.2) {
+        if (Math.abs(car.speed) > 10 && car.pos.distanceTo(p.pos) < 4.2) {
           killPed(p);
           if (car === (player && player.inCar)) LD.game && LD.game.onPlayerKill(p, 'car');
           break;

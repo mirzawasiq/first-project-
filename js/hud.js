@@ -12,6 +12,8 @@ LD.hud = (function () {
     el.clock = document.getElementById('clock');
     el.hp = document.getElementById('hpbar');
     el.ar = document.getElementById('arbar');
+    el.st = document.getElementById('stbar');
+    el.speedlines = document.getElementById('speedlines');
     el.weaponName = document.getElementById('weaponName');
     el.ammo = document.getElementById('ammo');
     el.mission = document.getElementById('mission');
@@ -21,6 +23,8 @@ LD.hud = (function () {
     el.speedval = document.getElementById('speedval');
     el.bigflash = document.getElementById('bigflash');
     el.minimap = document.getElementById('minimap');
+    el.perf = document.getElementById('perf');
+    el.lockhint = document.getElementById('lockhint');
     mapCtx = el.minimap.getContext('2d');
   }
 
@@ -29,9 +33,24 @@ LD.hud = (function () {
 
   function setMoney(n) { el.money.textContent = U.money(n); }
   function setClock(s) { el.clock.textContent = s; }
+  function setQuality(q) { if (el.perf) el.perf.dataset.q = q; }
+  function setLockHint(show) {
+    if (el.lockhint) el.lockhint.classList.toggle('hidden', !show);
+  }
+  function setPerf(fps, q) {
+    if (el.perf) el.perf.textContent = Math.round(fps) + ' fps · ' + q;
+  }
   function setHealth(hp, armor) {
     el.hp.style.width = U.clamp(hp, 0, 100) + '%';
     el.ar.style.width = U.clamp(armor, 0, 100) + '%';
+  }
+  function setStamina(v) {
+    if (!el.st) return;
+    el.st.style.width = U.clamp(v, 0, 100) + '%';
+    el.st.classList.toggle('spent', v < LD.settings.staminaToBoost);
+  }
+  function setBoosting(on) {
+    if (el.speedlines) el.speedlines.classList.toggle('on', !!on);
   }
   function setWanted(stars) {
     let s = '';
@@ -143,6 +162,6 @@ LD.hud = (function () {
 
   return {
     init, show, hide, setMoney, setHealth, setWanted, setWeapon, setClock,
-    mission, prompt, speedo, toast, bigFlash, clearFlash, drawMinimap,
+    mission, prompt, speedo, toast, bigFlash, clearFlash, drawMinimap, setQuality, setPerf, setLockHint, setStamina, setBoosting,
   };
 })();

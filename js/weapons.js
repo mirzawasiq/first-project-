@@ -93,9 +93,15 @@ LD.weapons = (function () {
   const U = LD.util;
 
   const LIST = [
-    { name: 'Fists', gun: false, range: 3.2, dmg: 20, rate: 0.35 },
-    { name: 'Pistol', gun: true, range: 140, dmg: 45, rate: 0.22, ammo: 68, maxAmmo: 300 },
+    { id: 'fists',  name: 'Fists',  gun: false, range: 3.2, dmg: 20, rate: 0.35, owned: true },
+    { id: 'pistol', name: 'Pistol', gun: true, range: 140, dmg: 45, rate: 0.22,
+      ammo: 68, maxAmmo: 300, spread: 0.004, pellets: 1, owned: true },
+    { id: 'shotgun', name: 'Shotgun', gun: true, range: 55, dmg: 20, rate: 0.72,
+      ammo: 0, maxAmmo: 90, spread: 0.055, pellets: 7, owned: false, kick: 2.4 },
+    { id: 'smg', name: 'SMG', gun: true, range: 110, dmg: 17, rate: 0.075,
+      ammo: 0, maxAmmo: 400, spread: 0.022, pellets: 1, owned: false, kick: 0.5 },
   ];
+  const byId = (id) => LIST.findIndex((w) => w.id === id);
   let current = 0;
   let cooldown = 0;
 
@@ -105,9 +111,26 @@ LD.weapons = (function () {
     const w = LIST[current];
     return w.gun ? String(w.ammo) : '∞';
   }
-  function select(i) { if (i >= 0 && i < LIST.length) current = i; }
-  function addAmmo(n) { LIST[1].ammo = Math.min(LIST[1].maxAmmo, LIST[1].ammo + n); }
+  function select(i) { if (i >= 0 && i < LIST.length && LIST[i].owned) current = i; }
+  // top up whatever guns you actually carry
+  function addAmmo(n) {
+    for (const w of LIST) {
+      if (!w.gun || !w.owned) continue;
+      w.ammo = Math.min(w.maxAmmo, w.ammo + n);
+    }
+  }
+  function give(id) {
+    const i = byId(id);
+    if (i < 0) return;
+    const w = LIST[i];
+    const isNew = !w.owned;
+    w.owned = true;
+    w.ammo = Math.min(w.maxAmmo, w.ammo + (isNew ? (w.id === 'shotgun' ? 24 : 90) : 30));
+    current = i;
+    LD.hud.toast((isNew ? 'Picked up ' : 'Ammo for ') + w.name, 'good');
+  }
   function resetAmmo() { LIST[1].ammo = 68; current = 0; }
+  function owned() { return LIST.filter((w) => w.owned).map((w) => w.name); }
 
   function raySphere(o, d, c, r) {
     const oc = new THREE.Vector3().subVectors(o, c);
@@ -120,9 +143,15 @@ LD.weapons = (function () {
   }
 
   // returns hit target descriptor or null
-  function shootRay(player, camera) {
+  function shootRay(player, camera, spread) {
     const { origin, dir } = player.aimRay(camera);
     dir.normalize();
+    if (spread) {
+      dir.x += U.rand(-spread, spread);
+      dir.y += U.rand(-spread, spread);
+      dir.z += U.rand(-spread, spread);
+      dir.normalize();
+    }
     let best = null, bestT = LIST[current].range;
 
     // pedestrians
@@ -142,8 +171,8 @@ LD.weapons = (function () {
     // cars
     for (const car of LD.vehicles.cars) {
       if (car === player.inCar || car.destroyed) continue;
-      const c = car.pos.clone().setY(1);
-      const t = raySphere(origin, dir, c, Math.max(car.spec.w, car.spec.l) / 2);
+      const c = car.pos.clone().setY(car.spec.h);
+      const t = raySphere(origin, dir, c, car.spec.w * 0.62);
       if (t > 0.5 && t < bestT) { bestT = t; best = { kind: 'car', ref: car, point: origin.clone().addScaledVector(dir, t) }; }
     }
     // building/ground fallback endpoint
@@ -163,20 +192,24 @@ LD.weapons = (function () {
       if (w.ammo <= 0) return;
       w.ammo--;
       cooldown = w.rate;
-      LD.audio.gunshot();
+      LD.audio.gunshot(w.id);
       const mp = muzzlePos(player, camera);
       LD.fx.muzzle(mp);
-      const { best, endPoint } = shootRay(player, camera);
-      LD.fx.tracer(mp, endPoint);
-      LD.traffic.scare(player.pos, 26);
+      // a shotgun throws several pellets per trigger pull
+      for (let i = 0; i < (w.pellets || 1); i++) {
+        const { best, endPoint } = shootRay(player, camera, w.spread);
+        LD.fx.tracer(mp, endPoint);
+        if (best) applyHit(best, w.dmg, player);
+        else LD.fx.sparks(endPoint);
+      }
+      if (w.kick && player) player.camPitch = U.clamp(player.camPitch + w.kick * 0.02, -0.15, 1.15);
+      LD.traffic.scare(player.pos, w.id === 'shotgun' ? 34 : 26);
       LD.game.onPlayerAttack(false);
-      if (best) applyHit(best, w.dmg, player);
-      else LD.fx.sparks(endPoint);
     } else {
       // melee
       cooldown = w.rate;
       LD.audio.punch();
-      player.human.armR.rotation.x = -1.6;
+      player.human.punch();
       const fwd = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
       let hit = null, bestD = w.range;
       const check = (arr, kind) => {
@@ -214,12 +247,22 @@ LD.weapons = (function () {
     if (cooldown > 0) cooldown -= dt;
     if (LD.input.wasPressed('Digit1')) select(0);
     if (LD.input.wasPressed('Digit2')) select(1);
-    // relax melee arm
-    if (player && !player.dead && !currentIsGun() && player.human.armR.rotation.x < -0.5) {
-      player.human.armR.rotation.x += dt * 6;
+    if (LD.input.wasPressed('Digit3')) select(byId('shotgun'));
+    if (LD.input.wasPressed('Digit4')) select(byId('smg'));
+    // Q cycles through whatever you're carrying
+    if (LD.input.wasPressed('KeyQ')) {
+      for (let n = 1; n <= LIST.length; n++) {
+        const i = (current + n) % LIST.length;
+        if (LIST[i].owned) { current = i; break; }
+      }
     }
+    // holding the trigger works for automatics
+    if (LIST[current].id === 'smg' && LD.input.mouse.down && player && !player.dead && !player.inCar) {
+      attack(player, LD.game.camera);
+    }
+    // the punch swing now animates itself inside the character rig
   }
 
-  return { attack, update, currentIsGun, currentName, ammoText, select, addAmmo, resetAmmo,
+  return { attack, update, currentIsGun, currentName, ammoText, select, addAmmo, give, owned, resetAmmo,
     get index() { return current; } };
 })();

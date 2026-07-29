@@ -13,32 +13,123 @@ LD.world = (function () {
   const nodes = [];        // intersection positions {x,z,i,j}
   const trees = [];
   let windowMats = [];
-  let sun, hemi, ambient, sky;
+  let facadeMats = [];
+  let capMat = null;
+  let sun, hemi, ambient, sky, skyDome = null;
+  let nightFactor = 0;
+  let groundMat = null;            // road surface, goes wet/reflective in rain
+  const neons = [];                // emissive shop signs
+  const lampPools = [];            // fake light pools cast on the pavement
+  let weatherLight = 1, weatherFog = 0, weatherFlash = 0;
+  let envMap = null;
   let lampMeshes = [];
   let time = 8.0;          // hours 0..24
   let dayLen = 240;        // seconds per full day
 
   // ---------- textures ----------
   function makeWindowTexture(seed) {
-    const c = document.createElement('canvas');
-    c.width = 64; c.height = 128;
+    const S = 256, H = 512;
+    const c = document.createElement('canvas'); c.width = S; c.height = H;
     const g = c.getContext('2d');
-    const facades = ['#3a3f4b', '#4a4033', '#33414a', '#464650', '#2f3540'];
-    g.fillStyle = facades[seed % facades.length];
-    g.fillRect(0, 0, 64, 128);
-    const cols = 4, rows = 8, m = 6;
-    const ww = (64 - m * (cols + 1)) / cols;
-    const wh = (128 - m * (rows + 1)) / rows;
+    const facades = ['#8b93a3', '#a2957f', '#7d8b9a', '#94969f', '#6f7789', '#a08d84'];
+    const base = facades[seed % facades.length];
+    g.fillStyle = base; g.fillRect(0, 0, S, H);
+
+    // concrete grain
+    for (let i = 0; i < 5000; i++) {
+      g.fillStyle = 'rgba(0,0,0,' + (Math.random() * 0.05) + ')';
+      g.fillRect(Math.random() * S, Math.random() * H, 2, 2);
+    }
+    // floor slab bands
+    const cols = 5, rows = 10;
+    const cw = S / cols, rh = H / rows;
+    for (let r = 0; r < rows; r++) {
+      g.fillStyle = 'rgba(255,255,255,0.05)';
+      g.fillRect(0, r * rh, S, 3);
+      g.fillStyle = 'rgba(0,0,0,0.22)';
+      g.fillRect(0, r * rh + rh - 4, S, 4);
+    }
+    // recessed glass with a sky-ish reflection gradient
+    const lit = [];
+    for (let r = 0; r < rows; r++) {
+      lit[r] = [];
+      for (let col = 0; col < cols; col++) {
+        const x = col * cw + cw * 0.18, y = r * rh + rh * 0.2;
+        const w = cw * 0.64, h = rh * 0.52;
+        g.fillStyle = 'rgba(0,0,0,0.45)';
+        g.fillRect(x - 2, y - 2, w + 4, h + 4);
+        const grad = g.createLinearGradient(x, y, x, y + h);
+        grad.addColorStop(0, '#20303f'); grad.addColorStop(0.55, '#2b4457'); grad.addColorStop(1, '#16212c');
+        g.fillStyle = grad; g.fillRect(x, y, w, h);
+        g.fillStyle = 'rgba(255,255,255,0.10)';
+        g.fillRect(x, y, w, h * 0.22);
+        lit[r][col] = Math.random() < 0.45;
+      }
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.encoding = THREE.sRGBEncoding;
+    tex.anisotropy = 4;
+
+    // matching emissive map: only the lit windows glow after dark
+    const e = document.createElement('canvas'); e.width = S; e.height = H;
+    const eg = e.getContext('2d');
+    eg.fillStyle = '#000'; eg.fillRect(0, 0, S, H);
     for (let r = 0; r < rows; r++) {
       for (let col = 0; col < cols; col++) {
-        const lit = Math.random() < 0.5;
-        g.fillStyle = lit ? '#ffe9a8' : '#171b22';
-        g.fillRect(m + col * (ww + m), m + r * (wh + m), ww, wh);
+        if (!lit[r][col]) continue;
+        const x = col * cw + cw * 0.18, y = r * rh + rh * 0.2;
+        eg.fillStyle = Math.random() < 0.15 ? '#9fd4ff' : '#ffdca1';
+        eg.fillRect(x, y, cw * 0.64, rh * 0.52);
       }
+    }
+    const emis = new THREE.CanvasTexture(e);
+    emis.wrapS = emis.wrapT = THREE.RepeatWrapping;
+    emis.encoding = THREE.sRGBEncoding;
+    return { map: tex, emissive: emis };
+  }
+
+  function makeAsphaltTexture() {
+    const S = 512;
+    const c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d');
+    g.fillStyle = '#494d57'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 26000; i++) {
+      const v = Math.random();
+      g.fillStyle = 'rgba(' + (v < .5 ? '0,0,0,' : '255,255,255,') + (Math.random() * 0.09) + ')';
+      g.fillRect(Math.random() * S, Math.random() * S, 2, 2);
+    }
+    // faint patches / repairs so it isn't uniform noise
+    for (let i = 0; i < 26; i++) {
+      g.fillStyle = 'rgba(0,0,0,' + (0.04 + Math.random() * 0.07) + ')';
+      g.fillRect(Math.random() * S, Math.random() * S, 30 + Math.random() * 90, 20 + Math.random() * 70);
     }
     const t = new THREE.CanvasTexture(c);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(60, 60);
+    t.encoding = THREE.sRGBEncoding;
+    t.anisotropy = 4;
     return t;
+  }
+
+  // large inverted sphere with a vertex-driven gradient — reads far better
+  // than a flat background colour, especially at dusk
+  function makeSkyDome() {
+    const geo = new THREE.SphereGeometry(760, 24, 16);
+    const mat = new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false, fog: false,
+      uniforms: {
+        top:    { value: new THREE.Color(0x2a6cc4) },
+        bottom: { value: new THREE.Color(0xbcd6f0) },
+        offset: { value: 40 }, expo: { value: 0.7 },
+      },
+      vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader:
+        'uniform vec3 top; uniform vec3 bottom; uniform float offset; uniform float expo; varying vec3 vP;' +
+        'void main(){ float h = normalize(vP + vec3(0.0, offset, 0.0)).y;' +
+        'gl_FragColor = vec4(mix(bottom, top, pow(max(h,0.0), expo)), 1.0); }',
+    });
+    return new THREE.Mesh(geo, mat);
   }
 
   function makeLaneTexture() {
@@ -58,34 +149,38 @@ LD.world = (function () {
   function addBuilding(cx, cz, w, d) {
     const h = U.rand(14, 62);
     const geo = new THREE.BoxGeometry(w, h, d);
-    const wt = U.pick(windowMats).clone();
-    wt.repeat.set(Math.max(1, Math.round(w / 10)), Math.max(1, Math.round(h / 12)));
-    const mat = new THREE.MeshLambertMaterial({ map: wt });
-    mat.emissive = new THREE.Color(0xffe9a8);
-    mat.emissiveMap = wt;
-    mat.emissiveIntensity = 0.0; // raised at night
+    // Buildings SHARE one material per facade variant. Cloning a map +
+    // emissiveMap per building meant hundreds of canvas textures and a
+    // state change on every draw; tiling is baked into the UVs instead.
+    const vi = U.randInt(0, facadeMats.length - 1);
+    const mat = facadeMats[vi];
+    const rx = Math.max(1, Math.round(w / 22)), ry = Math.max(1, Math.round(h / 20));
+    const uv = geo.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * rx, uv.getY(i) * ry);
+    uv.needsUpdate = true;
     const m = new THREE.Mesh(geo, mat);
     m.position.set(cx, h / 2 + 0.3, cz);
-    m.castShadow = false; m.receiveShadow = false;
-    // rooftop cap
+    m.castShadow = true; m.receiveShadow = true;
+    // rooftop cap + parapet
     const cap = new THREE.Mesh(
       new THREE.BoxGeometry(w * 0.6, 2, d * 0.6),
-      new THREE.MeshLambertMaterial({ color: 0x2a2e38 })
+      capMat
     );
+    cap.castShadow = true;
     cap.position.set(cx, h + 1.3, cz);
     scene.add(m); scene.add(cap);
-    buildings.push({ x: cx, z: cz, hx: w / 2, hz: d / 2, h, mesh: m, mat });
+    buildings.push({ x: cx, z: cz, hx: w / 2, hz: d / 2, h, mesh: m });
   }
 
   function addTree(x, z) {
     const trunk = new THREE.Mesh(
       new THREE.CylinderGeometry(0.4, 0.55, 3, 6),
-      new THREE.MeshLambertMaterial({ color: 0x5b3d24 })
+      new THREE.MeshStandardMaterial({ color: 0x5b3d24, roughness: 0.95 })
     );
     trunk.position.set(x, 1.5, z);
     const leaves = new THREE.Mesh(
       new THREE.IcosahedronGeometry(2.4, 0),
-      new THREE.MeshPhongMaterial({ color: 0x2f7d3a, flatShading: true, shininess: 0 })
+      new THREE.MeshStandardMaterial({ color: 0x2f6f39, flatShading: true, roughness: 1 })
     );
     leaves.position.set(x, 4.2, z);
     scene.add(trunk); scene.add(leaves);
@@ -96,7 +191,7 @@ LD.world = (function () {
   function addLamp(x, z) {
     const pole = new THREE.Mesh(
       new THREE.CylinderGeometry(0.15, 0.2, 6, 6),
-      new THREE.MeshLambertMaterial({ color: 0x20242c })
+      new THREE.MeshStandardMaterial({ color: 0x20242c, roughness: 0.6, metalness: 0.5 })
     );
     pole.position.set(x, 3, z);
     const head = new THREE.Mesh(
@@ -108,10 +203,50 @@ LD.world = (function () {
     lampMeshes.push(head.material);
   }
 
+  const NEON = [0xff2d6f, 0x2de1ff, 0xffd23f, 0x8a5cff, 0x38ff9e, 0xff6a2d];
+
+  function addNeon(cx, cz, w, d, h) {
+    const col = U.pick(NEON);
+    const wide = U.chance(0.5);
+    const geo = new THREE.PlaneGeometry(wide ? w * 0.5 : 1.1, wide ? 1.6 : h * 0.22);
+    const mat = new THREE.MeshStandardMaterial({
+      color: col, emissive: col, emissiveIntensity: 0, side: THREE.DoubleSide,
+      roughness: 0.4, transparent: true, opacity: 0.96,
+    });
+    const sign = new THREE.Mesh(geo, mat);
+    // pin it to a random face, just proud of the wall
+    const face = U.randInt(0, 3);
+    const y = U.rand(6, Math.max(8, h * 0.55));
+    if (face === 0) sign.position.set(cx, y, cz + d / 2 + 0.15);
+    else if (face === 1) { sign.position.set(cx, y, cz - d / 2 - 0.15); sign.rotation.y = Math.PI; }
+    else if (face === 2) { sign.position.set(cx + w / 2 + 0.15, y, cz); sign.rotation.y = -Math.PI / 2; }
+    else { sign.position.set(cx - w / 2 - 0.15, y, cz); sign.rotation.y = Math.PI / 2; }
+    scene.add(sign);
+    neons.push({ mat, flicker: U.chance(0.25), phase: U.rand(0, 9) });
+  }
+
+  function addLampPool(x, z) {
+    const m = new THREE.Mesh(
+      new THREE.CircleGeometry(7.5, 20),
+      new THREE.MeshBasicMaterial({
+        color: 0xffdba6, transparent: true, opacity: 0,
+        depthWrite: false, blending: THREE.AdditiveBlending, fog: true })
+    );
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, 0.06, z);
+    scene.add(m);
+    lampPools.push(m.material);
+  }
+
   // ---------- build ----------
   function build(sc) {
     scene = sc;
     windowMats = [0, 1, 2, 3, 4].map(makeWindowTexture);
+    facadeMats = windowMats.map((src) => new THREE.MeshStandardMaterial({
+      map: src.map, roughness: 0.72, metalness: 0.06,
+      emissive: new THREE.Color(0xffffff), emissiveMap: src.emissive, emissiveIntensity: 0.0,
+    }));
+    capMat = new THREE.MeshStandardMaterial({ color: 0x363b46, roughness: 0.9 });
 
     // sky + fog
     sky = new THREE.Color(0x8fb7e6);
@@ -125,24 +260,40 @@ LD.world = (function () {
     scene.add(hemi);
     sun = new THREE.DirectionalLight(0xfff2d6, 1.0);
     sun.position.set(80, 140, 40);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    // tight ortho frustum that travels with the player, so a 600-unit city
+    // still gets crisp contact shadows from a 2k map
+    const sc2 = sun.shadow.camera;
+    sc2.left = -95; sc2.right = 95; sc2.top = 95; sc2.bottom = -95;
+    sc2.near = 1; sc2.far = 420;
+    sun.shadow.bias = -0.0007;
+    sun.shadow.normalBias = 0.6;
     scene.add(sun);
+    scene.add(sun.target);
+
+    skyDome = makeSkyDome();
+    scene.add(skyDome);
 
     // base asphalt (roads everywhere underneath the blocks)
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(SPAN + GRID * 2, SPAN + GRID * 2),
-      new THREE.MeshLambertMaterial({ color: 0x24272e })
+      groundMat = new THREE.MeshStandardMaterial({
+        map: makeAsphaltTexture(), roughness: 0.95, metalness: 0.02 })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0;
+    ground.receiveShadow = true;
     scene.add(ground);
 
     // outer grass ring beyond the city
     const outer = new THREE.Mesh(
       new THREE.RingGeometry(SPAN * 0.75, SPAN * 1.6, 48),
-      new THREE.MeshLambertMaterial({ color: 0x24502e })
+      new THREE.MeshStandardMaterial({ color: 0x24512c, roughness: 1 })
     );
     outer.rotation.x = -Math.PI / 2;
     outer.position.y = -0.2;
+    outer.receiveShadow = true;
     scene.add(outer);
 
     // lane markings (dashed lines along each road centerline)
@@ -183,8 +334,10 @@ LD.world = (function () {
         // sidewalk / lot platform
         const plat = new THREE.Mesh(
           new THREE.BoxGeometry(GRID - ROAD, 0.6, GRID - ROAD),
-          new THREE.MeshLambertMaterial({ color: isPark ? 0x2f6b38 : 0x4b505b })
+          new THREE.MeshStandardMaterial({
+            color: isPark ? 0x2f6b39 : 0x5f646e, roughness: 0.94, metalness: 0.0 })
         );
+        plat.receiveShadow = true; plat.castShadow = true;
         plat.position.set(cx, 0.3, cz);
         scene.add(plat);
 
@@ -198,6 +351,7 @@ LD.world = (function () {
             const w = blockSpan * U.rand(0.7, 0.92);
             const d = blockSpan * U.rand(0.7, 0.92);
             addBuilding(cx, cz, w, d);
+            if (U.chance(0.5)) addNeon(cx, cz, w, d, 30);
           } else {
             const w = blockSpan * 0.44, d = blockSpan * 0.44, o = blockSpan * 0.24;
             addBuilding(cx - o, cz - o, w, d);
@@ -213,11 +367,52 @@ LD.world = (function () {
     for (const n of nodes) {
       if ((n.i + n.j) % 2 === 0) {
         addLamp(n.x + ROAD / 2 + 1.2, n.z + ROAD / 2 + 1.2);
+        addLampPool(n.x + ROAD / 2 + 1.2, n.z + ROAD / 2 + 1.2);
       }
     }
 
+    buildEnvMap();
     applyTimeOfDay();
     return { N, GRID, ROAD, HALF, SPAN, nodes, buildings };
+  }
+
+  /* Environment map for reflections (car paint, chrome, wet asphalt).
+     NOTE: generating this from the sky-dome ShaderMaterial via
+     PMREMGenerator.fromScene() produced a broken CubeUV texture that
+     rendered every MeshStandardMaterial black. Building it from a plain
+     equirectangular canvas is the reliable path. */
+  function makeSkyEquirect() {
+    const w = 256, h = 128;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    const grd = g.createLinearGradient(0, 0, 0, h);
+    grd.addColorStop(0.00, '#2f6fc9');     // zenith
+    grd.addColorStop(0.45, '#9dc4e8');
+    grd.addColorStop(0.52, '#dbe7f2');     // horizon haze
+    grd.addColorStop(1.00, '#4a4f58');     // ground bounce
+    g.fillStyle = grd; g.fillRect(0, 0, w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.mapping = THREE.EquirectangularReflectionMapping;
+    t.encoding = THREE.sRGBEncoding;
+    return t;
+  }
+
+  function buildEnvMap() {
+    try {
+      const renderer = LD.game && LD.game.renderer;
+      if (!renderer || !THREE.PMREMGenerator) return;
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      pmrem.compileEquirectangularShader();
+      const src = makeSkyEquirect();
+      const rt = pmrem.fromEquirectangular(src);
+      envMap = rt.texture;
+      scene.environment = envMap;
+      src.dispose();
+      pmrem.dispose();
+    } catch (e) {
+      envMap = null;
+      scene.environment = null;      // never let reflections break rendering
+    }
   }
 
   // ---------- queries ----------
@@ -295,28 +490,83 @@ LD.world = (function () {
     scene.background.copy(col);
     scene.fog.color.copy(col);
 
-    sun.intensity = 0.25 + day * 0.95;
-    sun.color.setHex(dusk ? 0xffb066 : 0xfff2d6);
-    ambient.intensity = 0.28 + day * 0.4;
-    hemi.intensity = 0.2 + day * 0.5;
+    if (skyDome) {
+      const u = skyDome.material.uniforms;
+      u.top.value.copy(new THREE.Color(0x070d1a).lerp(new THREE.Color(0x2a6cc4), day));
+      const horizon = new THREE.Color(0x121b2e).lerp(new THREE.Color(0xbcd6f0), day);
+      if (dusk) horizon.lerp(new THREE.Color(0xff8a3d), 0.55 * (1 - day * 0.6));
+      u.bottom.value.copy(horizon);
+    }
+
+    sun.intensity = (0.06 + day * 0.95) * Math.max(0.45, weatherLight) + weatherFlash * 1.6;
+    sun.color.setHex(dusk ? 0xffa055 : 0xfff4e2);
+    ambient.intensity = (0.10 + day * 0.16) * U.lerp(1, 0.86, 1 - weatherLight) + weatherFlash * 1.2;
+    hemi.intensity = 0.10 + day * 0.22;
+    hemi.color.setHex(dusk ? 0xffc79a : 0xbdd7ff);
 
     // sun arc across the sky
     const ang = ((t - 6) / 12) * Math.PI; // sunrise 6 -> sunset 18
     sun.position.set(Math.cos(ang) * 140, Math.max(12, Math.sin(ang) * 150), 40);
 
-    // windows + lamps glow at night
-    const nightFactor = U.clamp(1 - day * 1.4, 0, 1);
-    for (const b of buildings) {
-      if (b.mat) b.mat.emissiveIntensity = nightFactor * 0.9;
-    }
+    // r128 has no global IBL knob, so scale each material's envMapIntensity:
+    // reflections must fade with the sky or night looks lit like noon
+    const ibl = U.lerp(0.08, 0.42, day);
+    for (const fm of facadeMats) fm.envMapIntensity = ibl;
+
+    // windows + lamps glow at night (bloom picks these up)
+    nightFactor = U.clamp(1 - day * 1.4, 0, 1);
+    for (const fm of facadeMats) fm.emissiveIntensity = nightFactor * 1.5;
     for (const lm of lampMeshes) {
-      lm.color.setHex(nightFactor > 0.4 ? 0xffdf9a : 0x2a2a2a);
+      lm.color.setHex(nightFactor > 0.35 ? 0xffe6b0 : 0x2f3138);
+    }
+    // lamps also throw a soft pool on the pavement once it is dark
+    const lampOn = U.clamp((nightFactor - 0.25) / 0.5, 0, 1);
+    for (const lp of lampPools) lp.opacity = lampOn * 0.3;
+    // neon comes on at dusk; a quarter of the signs have a dying tube
+    for (const n of neons) {
+      let v = lampOn * 2.6;
+      if (n.flicker) {
+        const f = Math.sin(time * 90 + n.phase) * Math.sin(time * 37 + n.phase * 2);
+        if (f > 0.72) v *= 0.15;
+      }
+      n.mat.emissiveIntensity = v;
     }
   }
 
   function update(dt) {
     time = (time + dt / dayLen * 24) % 24;
     applyTimeOfDay();
+  }
+
+  /* Called every frame by LD.weather with eased values. */
+  function applyWeather(w, flash) {
+    weatherLight = w.light; weatherFog = w.fog; weatherFlash = flash || 0;
+    if (groundMat) {
+      // Wet asphalt is a DIELECTRIC: it gets a smooth specular sheen, it does
+      // not become metal. Pushing metalness up kills the diffuse term and the
+      // road renders black, so keep metalness near zero and drop roughness.
+      const wet = w.wet;
+      groundMat.roughness = U.lerp(0.95, 0.30, wet);
+      groundMat.metalness = U.lerp(0.02, 0.10, wet);
+      groundMat.color.setScalar(U.lerp(1.0, 0.74, wet));
+      groundMat.envMapIntensity = U.lerp(0.35, 1.15, wet);
+    }
+    // fog closes in with weather, and hard at night
+    if (scene.fog) {
+      const base = 460;
+      scene.fog.near = U.lerp(140, 20, w.fog);
+      scene.fog.far = U.lerp(base, 130, w.fog);
+    }
+  }
+
+  // move the shadow camera and sky with the player
+  function followSun(p) {
+    if (!sun || !p) return;
+    const dir = sun.position.clone().normalize();
+    sun.target.position.set(p.x, 0, p.z);
+    sun.target.updateMatrixWorld();
+    sun.position.set(p.x + dir.x * 170, dir.y * 170, p.z + dir.z * 170);
+    if (skyDome) skyDome.position.set(p.x, 0, p.z);
   }
 
   function timeString() {
@@ -354,7 +604,8 @@ LD.world = (function () {
 
   return {
     build, isRoad, inBounds, nearestNode, nodeNeighbors, collide, update,
-    randomRoadPoint, safeSpawn, timeString,
+    randomRoadPoint, safeSpawn, timeString, followSun, applyWeather,
+    get nightFactor() { return nightFactor; },
     get time() { return time; }, set time(v) { time = v; },
     get consts() { return { N, GRID, ROAD, HALF, SPAN }; },
     get nodes() { return nodes; },

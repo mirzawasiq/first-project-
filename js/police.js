@@ -110,7 +110,7 @@ LD.police = (function () {
     const desired = Math.atan2(-dx, -dz);
     const err = U.angleDiff(car.heading, desired);
     car.control.steer = U.clamp(err * 1.8, -1, 1);
-    car.control.throttle = dist > 10 ? 1 : (dist > 5 ? 0.4 : -0.2);
+    car.control.throttle = dist > 16 ? 1 : (dist > 8 ? 0.4 : -0.2);
     car.control.handbrake = false;
 
     // cop in car shoots at high wanted
@@ -124,7 +124,7 @@ LD.police = (function () {
       }
     }
     // ram damage
-    if (dist < 3.2 && Math.abs(car.speed) > 10 && !player.inCar && !player.dead) player.takeDamage(U.rand(6, 12));
+    if (dist < 5.5 && Math.abs(car.speed) > 16 && !player.inCar && !player.dead) player.takeDamage(U.rand(6, 12));
   }
 
   function update(dt, player, camera) {

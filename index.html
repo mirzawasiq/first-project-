@@ -17,12 +17,14 @@
         <div id="wanted" class="wanted"></div>
         <div id="money" class="money">$0</div>
         <div id="clock" class="clock">12:00</div>
+        <div id="perf" class="perf"></div>
       </div>
 
       <!-- Bottom-left bars + weapon -->
       <div id="vitals">
         <div class="barwrap"><span class="lbl">HP</span><div class="bar"><div id="hpbar" class="fill hp"></div></div></div>
         <div class="barwrap"><span class="lbl">AR</span><div class="bar"><div id="arbar" class="fill ar"></div></div></div>
+        <div class="barwrap"><span class="lbl">ST</span><div class="bar"><div id="stbar" class="fill st"></div></div></div>
         <div id="weapon" class="weapon">
           <span id="weaponName">Fists</span>
           <span id="ammo" class="ammo"></span>
@@ -39,6 +41,7 @@
 
       <!-- Center prompt (enter car, etc.) -->
       <div id="prompt" class="prompt hidden"></div>
+      <div id="lockhint" class="lockhint hidden">Click to capture mouse · or use <b>Arrow Keys</b> / <b>right-drag</b> to look</div>
 
       <!-- Toast notifications -->
       <div id="toasts"></div>
@@ -48,6 +51,7 @@
 
       <!-- Big status flashes (WASTED / BUSTED) -->
       <div id="bigflash" class="bigflash hidden"></div>
+      <div id="speedlines" class="speedlines"></div>
     </div>
 
     <!-- Start / menu screen -->
@@ -61,12 +65,15 @@
             <h3>On Foot</h3>
             <ul>
               <li><b>WASD</b> Move</li>
-              <li><b>Mouse</b> Look</li>
+              <li><b>Mouse</b> Look (click to capture)</li>
+              <li><b>Arrow Keys</b> Rotate camera</li>
+              <li><b>Right-drag</b> Look (if mouse not captured)</li>
               <li><b>Shift</b> Sprint</li>
+              <li><b>Shift+Space</b> / <b>E</b> BOOST</li>
               <li><b>Space</b> Jump</li>
               <li><b>F</b> Enter vehicle</li>
               <li><b>Left Click</b> Attack / Shoot</li>
-              <li><b>1 / 2</b> Fists / Pistol</li>
+              <li><b>1-4 / Q</b> Switch weapon</li>
             </ul>
           </div>
           <div class="col">
@@ -76,13 +83,14 @@
               <li><b>A / D</b> Steer</li>
               <li><b>Space</b> Handbrake</li>
               <li><b>F</b> Exit vehicle</li>
-              <li><b>Mouse</b> Look around</li>
+              <li><b>Mouse / Arrows</b> Look</li>
             </ul>
           </div>
           <div class="col">
             <h3>Goal</h3>
             <ul>
               <li>Reach <span class="y">yellow markers</span> for paid jobs.</li>
+              <li>Grab glowing <span class="y">pickups</span> for health, armour, ammo, cash and weapons.</li>
               <li>Cause chaos, raise your <span class="r">wanted level</span>.</li>
               <li>Evade the cops or get <b>WASTED</b> / <b>BUSTED</b>.</li>
               <li>It's a sandbox — go wild.</li>
@@ -98,12 +106,24 @@
 
   <!-- Engine -->
   <script src="lib/three.min.js"></script>
+  <script src="lib/pp/CopyShader.js"></script>
+  <script src="lib/pp/LuminosityHighPassShader.js"></script>
+  <script src="lib/pp/FXAAShader.js"></script>
+  <script src="lib/pp/EffectComposer.js"></script>
+  <script src="lib/pp/RenderPass.js"></script>
+  <script src="lib/pp/ShaderPass.js"></script>
+  <script src="lib/pp/UnrealBloomPass.js"></script>
 
   <!-- Game modules (load order matters) -->
   <script src="js/utils.js"></script>
+  <script src="js/settings.js"></script>
   <script src="js/input.js"></script>
   <script src="js/audio.js"></script>
+  <script src="js/character.js"></script>
+  <script src="js/quality.js"></script>
   <script src="js/world.js"></script>
+  <script src="js/weather.js"></script>
+  <script src="js/pickups.js"></script>
   <script src="js/player.js"></script>
   <script src="js/vehicles.js"></script>
   <script src="js/traffic.js"></script>
