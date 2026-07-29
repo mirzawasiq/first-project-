@@ -1,0 +1,98 @@
+{
+  "$comment": "Instagram comment-to-DM automation for LIBERTY DRIVE. Tool-agnostic: paste the message bodies into ManyChat/Chatfuel, or feed this straight to the Instagram Messaging API. Edit `links` ONLY — every message references them.",
+  "version": "1.0",
+  "campaign": "liberty-drive-launch",
+
+  "links": {
+    "play": "https://mirzawasiq.github.io/first-project-/",
+    "code": "https://github.com/mirzawasiq/first-project-",
+    "builtWith": "https://claude.com/claude-code"
+  },
+
+  "trigger": {
+    "type": "comment_on_post",
+    "matchMode": "contains",
+    "caseSensitive": false,
+    "keywords": ["code", "game", "play", "link", "send", "how", "gta"],
+    "catchAll": true,
+    "$comment": "catchAll: also DM people who comment anything else. Turn off if you only want exact keyword matches."
+  },
+
+  "publicCommentReply": {
+    "enabled": true,
+    "$comment": "Reply publicly too — comment replies are a strong ranking signal in the first hour. Rotate so it never looks botted.",
+    "variants": [
+      "Sent it to your DMs 📩",
+      "Check your DMs 🎮",
+      "Just sent it over 🔥",
+      "In your DMs now 👀",
+      "Sent! Let me know what you think 🚗"
+    ]
+  },
+
+  "flow": [
+    {
+      "id": "msg_1_hook",
+      "type": "text",
+      "delaySeconds": 0,
+      "text": "Yo! Here's the GTA-style game I built 👇\n\n🎮 PLAY IT FREE (no download, runs in your browser):\n{{links.play}}"
+    },
+    {
+      "id": "msg_2_proof",
+      "type": "text",
+      "delaySeconds": 2,
+      "text": "Built 100% with Claude Code — no Unity, no Unreal, and zero downloaded assets.\n\nEvery car, building, texture and sound is generated in code. It's ~4,000 lines of JavaScript.\n\n💻 Full source: {{links.code}}"
+    },
+    {
+      "id": "msg_3_controls",
+      "type": "text",
+      "delaySeconds": 2,
+      "text": "Quick controls so you're not lost 🕹️\n\nWASD — move\nShift — sprint\nShift+Space — BOOST\nF — steal any car\nLeft click — shoot\nG — graphics quality\n\nTip: press G if it runs slow on your machine."
+    },
+    {
+      "id": "msg_4_cta",
+      "type": "text_with_buttons",
+      "delaySeconds": 2,
+      "text": "That's it — go cause some chaos 🚗💨\n\nIf you make something with it, tag me and I'll share it.",
+      "buttons": [
+        { "label": "🎮 Play now", "type": "url", "url": "{{links.play}}" },
+        { "label": "💻 Get the code", "type": "url", "url": "{{links.code}}" },
+        { "label": "🔥 How I built it", "type": "postback", "goTo": "branch_how" }
+      ]
+    }
+  ],
+
+  "branches": {
+    "branch_how": [
+      {
+        "id": "how_1",
+        "type": "text",
+        "delaySeconds": 0,
+        "text": "I described what I wanted and Claude Code wrote it — the city generator, car physics, police AI, weather system, all of it.\n\nBiggest lesson: be specific. \"Make it look better\" got me nothing. \"The car is 2.4x too short for a real sedan at this scale\" got me an actual fix."
+      },
+      {
+        "id": "how_2",
+        "type": "text",
+        "delaySeconds": 2,
+        "text": "Everything's open source if you want to read it or fork it 👇\n{{links.code}}\n\nClaude Code: {{links.builtWith}}"
+      }
+    ]
+  },
+
+  "fallback": {
+    "id": "fallback_generic",
+    "type": "text",
+    "text": "Here's the game 🎮\n\nPlay: {{links.play}}\nCode: {{links.code}}"
+  },
+
+  "compliance": {
+    "$comment": "Meta rules that actually bite. Read before going live.",
+    "messagingWindowHours": 24,
+    "notes": [
+      "A comment opens a 24-hour window to DM that user. Send inside it — automation tools handle this, but a delayed manual send will fail.",
+      "The Instagram account must be a Business or Creator account, connected to a Facebook Page.",
+      "Do not send more than one flow per user per post — repeat sends get you rate-limited or flagged as spam.",
+      "Keep the public comment replies varied. Identical replies on every comment is the fastest way to look botted."
+    ]
+  }
+}

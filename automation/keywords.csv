@@ -1,0 +1,8 @@
+keyword,match_type,priority,notes
+code,contains,1,primary CTA in the video
+game,contains,2,common natural phrasing
+play,contains,2,
+link,contains,2,
+send,contains,3,"e.g. ""send me it"""
+how,contains,3,"e.g. ""how did you make this"""
+gta,contains,3,people comparing it to GTA
