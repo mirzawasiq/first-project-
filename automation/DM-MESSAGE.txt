@@ -1,0 +1,20 @@
+Yo! Here's the GTA-style game I built 👇
+
+🎮 PLAY IT FREE — runs in your browser, no download:
+https://mirzawasiq.github.io/first-project-/
+
+💻 FULL SOURCE CODE:
+https://github.com/mirzawasiq/first-project-
+
+Built 100% with Claude Code — no Unity, no Unreal, and zero downloaded assets. Every car, building, texture and sound is generated in code.
+
+🕹️ CONTROLS
+WASD — move
+Shift — sprint
+Shift + Space — boost
+F — steal any car
+Left click — shoot
+G — graphics quality
+
+Go cause some chaos 🚗💨
+If you build something with it, tag me!
