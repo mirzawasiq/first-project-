@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "reap": {
+      "type": "http",
+      "url": "https://mcp.reap.video/mcp"
+    }
+  }
+}
