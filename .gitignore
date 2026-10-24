@@ -2,3 +2,8 @@
 runs/
 node_modules/
 package-lock.json
+
+# asset-dashboard build output (Qt Creator also creates build-* folders)
+asset-dashboard/build/
+asset-dashboard/build-*/
+asset-dashboard/CMakeLists.txt.user*
