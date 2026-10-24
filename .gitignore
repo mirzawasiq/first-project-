@@ -3,8 +3,7 @@ runs/
 node_modules/
 package-lock.json
 
-# asset-dashboard build output and save data
-asset-dashboard/asset_dashboard
-asset-dashboard/asset_dashboard.exe
+# asset-dashboard build output (Qt Creator also creates build-* folders)
 asset-dashboard/build/
-asset-dashboard/portfolio_data.txt
+asset-dashboard/build-*/
+asset-dashboard/CMakeLists.txt.user*
